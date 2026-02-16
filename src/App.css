@@ -116,6 +116,10 @@ button:disabled {
   align-items: start;
 }
 
+.shell.chat-collapsed .app-layout {
+  grid-template-columns: 1fr;
+}
+
 .main-content {
   min-width: 0;
 }

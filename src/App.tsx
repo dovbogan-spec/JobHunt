@@ -23,7 +23,16 @@ type ResumeData = {
   organization: string
 }
 type ResumeSection = { id: SectionId; label: string; visible: boolean }
-type SubmissionHistory = { id: string; date: string; role: string; company: string; template: TemplateName; resume: ResumeData; coverLetter: string }
+type SubmissionHistory = {
+  id: string
+  date: string
+  role: string
+  company: string
+  template: TemplateName
+  resume: ResumeData
+  coverLetter: string
+  jobDescription: string
+}
 type RequirementCheck = { id: string; requirement: string; score: number; reason: string }
 type AgentOutputs = {
   job: Record<string, unknown>
@@ -226,16 +235,44 @@ function App() {
     }
   }
 
-  async function fetchFromUrl() {
-    if (!jobLink.trim()) return
+  async function importJobFromUrl(link: string) {
+    const normalizedLink = link.trim()
+    if (!normalizedLink) return ''
     try {
-      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(jobLink.trim())}`)
-      const importedText = (await res.text()).slice(0, 7000)
-      setJobText((prev) => [prev, importedText].filter(Boolean).join('\n\n'))
+      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(normalizedLink)}`)
+      return (await res.text()).slice(0, 7000)
     } catch {
       setChatOpen(true)
       setChatMessages((prev) => [...prev, 'Could not import URL directly. Please paste the job description text.'])
+      return ''
     }
+  }
+
+  function upsertHistory(jobDescription: string) {
+    const normalizedJobDescription = jobDescription.trim()
+    if (!normalizedJobDescription) return
+
+    setHistory((prev) => {
+      const existingIndex = prev.findIndex((entry) => entry.jobDescription.trim() === normalizedJobDescription)
+      const nextEntry: SubmissionHistory = {
+        id: existingIndex >= 0 ? prev[existingIndex].id : uuidv4(),
+        date: new Date().toISOString(),
+        role: resume.targetRole,
+        company: resume.organization,
+        template,
+        resume,
+        coverLetter,
+        jobDescription: normalizedJobDescription,
+      }
+
+      if (existingIndex >= 0) {
+        const updated = [...prev]
+        updated.splice(existingIndex, 1)
+        return [nextEntry, ...updated].slice(0, 30)
+      }
+
+      return [nextEntry, ...prev].slice(0, 30)
+    })
   }
 
   async function runAgent1JobAnalyzer(jobDescription: string) {
@@ -292,10 +329,15 @@ function App() {
   async function generateResume() {
     setAnalyzingRequirements(true)
     try {
+      const importedText = jobLink.trim() ? await importJobFromUrl(jobLink) : ''
+      const combinedJobText = [jobText, importedText].filter(Boolean).join('\n\n').trim()
+      if (importedText && !jobText.includes(importedText)) {
+        setJobText(combinedJobText)
+      }
       const parsed = parseExperience(experienceDoc)
       const info = extractPersonInfo(experienceDoc)
-      const organization = jobText.match(/at\s+([A-Z][A-Za-z0-9&\s-]{2,})/i)?.[1]?.trim() || 'Target Company'
-      const [job, company, candidate] = await Promise.all([runAgent1JobAnalyzer(jobText), runAgent2Scraper(jobText), runAgent3Parser(experienceDoc)])
+      const organization = combinedJobText.match(/at\s+([A-Z][A-Za-z0-9&\s-]{2,})/i)?.[1]?.trim() || 'Target Company'
+      const [job, company, candidate] = await Promise.all([runAgent1JobAnalyzer(combinedJobText), runAgent2Scraper(combinedJobText), runAgent3Parser(experienceDoc)])
       const draft = await runAgent4Matcher(job, company, candidate)
       const gap = await runAgent5Checker(job, draft, candidate)
       setAgentOutputs({ job, company, candidate, draft, gap })
@@ -323,6 +365,7 @@ function App() {
 
       setChatOpen(true)
       setChatMessages((prev) => [...prev, 'Agent 5 found potential gaps. Please answer the follow-up questions below.', ...(((gap.interviewQuestions as string[] | undefined) || []).map((q) => `• ${q}`))])
+      upsertHistory(combinedJobText)
     } finally {
       setAnalyzingRequirements(false)
     }
@@ -334,6 +377,7 @@ function App() {
     try {
       const gap = await runAgent5Checker(agentOutputs.job, agentOutputs.draft, agentOutputs.candidate)
       setRequirementChecks((((gap.requirementScores as { requirement: string; score: number; reason: string }[] | undefined) || []).slice(0, 20)).map((x) => ({ id: uuidv4(), ...x })))
+      upsertHistory(jobText)
     } finally {
       setAnalyzingRequirements(false)
     }
@@ -377,10 +421,9 @@ function App() {
   }
 
   function onUpload(file: File) { const reader = new FileReader(); reader.onload = () => setExperienceDoc(String(reader.result || '')); reader.readAsText(file) }
-  function saveToHistory() { setHistory((prev) => [{ id: uuidv4(), date: new Date().toISOString(), role: resume.targetRole, company: resume.organization, template, resume, coverLetter }, ...prev].slice(0, 30)) }
 
   return (
-    <div className={`shell ${chatOpen ? 'chat-expanded' : ''}`}>
+    <div className={`shell ${chatOpen ? 'chat-expanded' : 'chat-collapsed'}`}>
       <header className="header">
         <h1>🌿 Job Hunter</h1>
         <div className="header-actions">
@@ -398,12 +441,10 @@ function App() {
               <textarea placeholder="📄 Paste the job description here" value={jobText} onChange={(e) => setJobText(e.target.value)} />
               <div className="intake-right">
                 <input value={jobLink} onChange={(e) => setJobLink(e.target.value)} placeholder="🔗 Or paste job link" />
-                <button onClick={fetchFromUrl}>🌐 Import from URL</button>
                 <input type="file" accept=".txt,.md,.rtf,.doc,.docx,.pdf" onChange={(e) => e.target.files && onUpload(e.target.files[0])} />
                 <p className="upload-help">Upload your career history/CV source file.</p>
                 <button className="primary generate-btn" onClick={generateResume} disabled={analyzingRequirements}>{analyzingRequirements ? '⚙️ Running Agents…' : '🚀 Generate Resume'}</button>
                 <select value={template} onChange={(e) => setTemplate(e.target.value as TemplateName)}>{TEMPLATES.map((name) => <option key={name} value={name}>{name} Template</option>)}</select>
-                <button onClick={saveToHistory}>💾 Save to History</button>
               </div>
             </section>
 
