@@ -1,5 +1,11 @@
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
   color: #123524;
   background: #effaf3;
 }
@@ -226,8 +232,61 @@ textarea {
   color: #3b6250;
 }
 
+.experience-pagination {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.job-insights-panel {
+  margin-top: 0.85rem;
+  border: 1px solid #d9ecdf;
+  border-radius: 0.8rem;
+  padding: 0.75rem;
+  background: linear-gradient(180deg, #f8fefb 0%, #f1faf5 100%);
+}
+
+.job-insights-panel h4,
+.job-insight-content h5 {
+  margin: 0 0 0.55rem;
+}
+
+.job-insights-layout {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 0.7rem;
+}
+
+.job-insight-icons {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.insight-icon-btn {
+  width: 40px;
+  min-height: 40px;
+  border-radius: 999px;
+  padding: 0;
+  font-weight: 700;
+  background: #fff;
+}
+
+.job-insight-content ul {
+  margin: 0;
+  padding-left: 1rem;
+  max-height: 190px;
+  overflow: auto;
+  display: grid;
+  gap: 0.35rem;
+}
+
 .resume-preview.modern {
-  border-top: 6px solid #2f855a;
+  border: 1px solid #cae6d5;
+  border-top: 7px solid #2f855a;
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 40px rgba(35, 110, 79, 0.16);
 }
 
 .resume-preview.classic {
@@ -246,13 +305,19 @@ textarea {
 
 .preview-toolbar {
   display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  align-items: center;
 }
 
-.preview-toolbar button {
-  min-width: 118px;
+.round-icon-button {
+  width: 38px;
+  min-height: 38px;
+  min-width: 38px;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 1.15rem;
+  line-height: 1;
 }
 
 .toolbar-right {
@@ -296,6 +361,19 @@ textarea {
   padding: 0.85rem;
 }
 
+.pdf-preview-mode {
+  background: #ececec;
+}
+
+.pdf-preview-mode .preview-content {
+  background: #fff;
+  margin: 0 auto;
+  width: min(100%, 794px);
+  min-height: 1123px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 2rem;
+}
+
 .resume-preview.is-fullscreen .preview-frame {
   max-height: calc(100vh - 130px);
 }
@@ -319,6 +397,13 @@ textarea {
 .move-controls {
   display: grid;
   gap: 0.2rem;
+}
+
+.preview-bottom-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.75rem;
 }
 
 .insights ul,
@@ -354,6 +439,34 @@ textarea {
 .requirements-checklist li {
   border-radius: 0.45rem;
   padding: 0.35rem;
+}
+
+.check-resume-row {
+  margin-top: 0.9rem;
+  background: #fff;
+  border: 1px solid #d2e9da;
+  border-radius: 0.9rem;
+  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.check-results-inline {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.check-results-inline li {
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
 }
 
 .score-good {
@@ -420,7 +533,9 @@ textarea {
 }
 
 .chat-sidebar {
-  transition: width 0.25s ease, opacity 0.25s ease;
+  transition:
+    width 0.25s ease,
+    opacity 0.25s ease;
 }
 
 .chat-sidebar.collapsed {
