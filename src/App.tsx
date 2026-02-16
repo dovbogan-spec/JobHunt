@@ -4,8 +4,9 @@ import { v4 as uuidv4 } from 'uuid'
 import './App.css'
 
 type TemplateName = 'Modern' | 'Classic' | 'Technical'
-type TabName = 'resume' | 'coverLetter' | 'history'
+type TabName = 'resume' | 'coverLetter' | 'history' | 'llm'
 type SectionId = 'header' | 'summary' | 'skills' | 'experience' | 'insights' | 'checklist'
+type LlmProvider = 'openai' | 'anthropic' | 'copilot' | 'gemini' | 'custom'
 
 type ExperienceItem = {
   id: string
@@ -49,6 +50,15 @@ type SubmissionHistory = {
   template: TemplateName
   resume: ResumeData
   coverLetter: string
+}
+
+type LlmIntegrationSettings = {
+  provider: LlmProvider
+  apiKey: string
+  model: string
+  endpoint: string
+  organization: string
+  enabled: boolean
 }
 
 const SKILL_KEYWORDS = [
@@ -96,6 +106,15 @@ const initialSections: ResumeSection[] = [
   { id: 'checklist', label: 'Requirement checklist', visible: true },
 ]
 
+const initialLlmSettings: LlmIntegrationSettings = {
+  provider: 'openai',
+  apiKey: '',
+  model: '',
+  endpoint: '',
+  organization: '',
+  enabled: false,
+}
+
 function App() {
   const [tab, setTab] = useState<TabName>('resume')
   const [jobText, setJobText] = useState('')
@@ -111,6 +130,11 @@ function App() {
     const stored = localStorage.getItem('job-hunt-history')
     return stored ? JSON.parse(stored) : []
   })
+  const [llmSettings, setLlmSettings] = useState<LlmIntegrationSettings>(() => {
+    const stored = localStorage.getItem('job-hunt-llm-settings')
+    return stored ? JSON.parse(stored) : initialLlmSettings
+  })
+  const [llmSavedNotice, setLlmSavedNotice] = useState('')
   const [companyFilter, setCompanyFilter] = useState('all')
   const [skillFilter, setSkillFilter] = useState('all')
   const [chatOpen, setChatOpen] = useState(false)
@@ -130,6 +154,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('job-hunt-history', JSON.stringify(history))
   }, [history])
+
+  useEffect(() => {
+    localStorage.setItem('job-hunt-llm-settings', JSON.stringify(llmSettings))
+  }, [llmSettings])
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -487,6 +515,10 @@ function App() {
     setExperienceDoc(text)
   }
 
+  function saveLlmSettings() {
+    setLlmSavedNotice('LLM integration settings saved locally. Connect these values to your backend API calls.')
+  }
+
   return (
     <div className="shell">
       <header className="header">
@@ -498,6 +530,7 @@ function App() {
         <button className={tab === 'resume' ? 'active' : ''} onClick={() => setTab('resume')}>Resume Builder</button>
         <button className={tab === 'coverLetter' ? 'active' : ''} onClick={() => setTab('coverLetter')}>Cover Letter</button>
         <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>Submission History</button>
+        <button className={tab === 'llm' ? 'active' : ''} onClick={() => setTab('llm')}>LLM API Integration</button>
       </nav>
 
       {tab === 'resume' && (
@@ -761,6 +794,98 @@ function App() {
               ))}
             </tbody>
           </table>
+        </section>
+      )}
+
+      {tab === 'llm' && (
+        <section className="llm-config">
+          <div className="llm-header-row">
+            <h3>LLM Provider Configuration</h3>
+            <label className="toggle-inline">
+              <input
+                type="checkbox"
+                checked={llmSettings.enabled}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, enabled: e.target.checked }))
+                }}
+              />
+              Enable integration
+            </label>
+          </div>
+
+          <p className="llm-note">Add the credentials and endpoint you use for ChatGPT, Claude, Copilot, Gemini, or a custom compatible API.</p>
+
+          <div className="llm-grid">
+            <label>
+              Provider
+              <select
+                value={llmSettings.provider}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, provider: e.target.value as LlmProvider }))
+                }}
+              >
+                <option value="openai">ChatGPT / OpenAI</option>
+                <option value="anthropic">Claude / Anthropic</option>
+                <option value="copilot">Copilot / Azure OpenAI</option>
+                <option value="gemini">Gemini / Google AI</option>
+                <option value="custom">Custom endpoint</option>
+              </select>
+            </label>
+
+            <label>
+              API key / token
+              <input
+                type="password"
+                value={llmSettings.apiKey}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, apiKey: e.target.value }))
+                }}
+                placeholder="Paste secret key or token"
+              />
+            </label>
+
+            <label>
+              Model
+              <input
+                value={llmSettings.model}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, model: e.target.value }))
+                }}
+                placeholder="gpt-4o-mini, claude-3-5-sonnet, gemini-1.5-pro..."
+              />
+            </label>
+
+            <label>
+              API endpoint (optional)
+              <input
+                value={llmSettings.endpoint}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, endpoint: e.target.value }))
+                }}
+                placeholder="https://api.openai.com/v1/chat/completions"
+              />
+            </label>
+
+            <label>
+              Organization / tenant (optional)
+              <input
+                value={llmSettings.organization}
+                onChange={(e) => {
+                  setLlmSavedNotice('')
+                  setLlmSettings((prev) => ({ ...prev, organization: e.target.value }))
+                }}
+                placeholder="org_..., tenant id, project id"
+              />
+            </label>
+          </div>
+
+          <button className="primary" onClick={saveLlmSettings}>Save integration settings</button>
+          {llmSavedNotice && <p className="llm-saved">{llmSavedNotice}</p>}
         </section>
       )}
 
