@@ -337,3 +337,24 @@ textarea {
     margin-left: 0;
   }
 }
+
+.mini-tabs {
+  margin-bottom: 0.5rem;
+}
+
+.score-good {
+  background: #dcfce7;
+}
+
+.score-warn {
+  background: #ffedd5;
+}
+
+.score-bad {
+  background: #fee2e2;
+}
+
+.chat-box textarea {
+  min-height: 80px;
+  margin-bottom: 0.5rem;
+}
