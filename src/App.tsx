@@ -5,9 +5,10 @@ import { AGENT_PROMPTS, type AgentPromptId } from './agentPrompts'
 import './App.css'
 
 type TemplateName = 'Modern' | 'Classic' | 'Technical'
-type TabName = 'resume' | 'coverLetter' | 'history'
+type TabName = 'resume' | 'coverLetter' | 'history' | 'llmIntegration'
 type SectionId = 'header' | 'summary' | 'skills' | 'experience' | 'insights' | 'checklist'
 type InsightTab = 'soft' | 'hard' | 'reviews' | 'salary' | 'values'
+type LlmProvider = 'openai' | 'anthropic' | 'azureOpenai' | 'gemini' | 'custom'
 
 type ExperienceItem = { id: string; text: string; company: string; skillTags: string[]; selected: boolean }
 type ResumeData = {
@@ -31,11 +32,39 @@ type AgentOutputs = {
   draft: Record<string, unknown>
   gap: Record<string, unknown>
 }
+type LlmSettings = {
+  enabled: boolean
+  provider: LlmProvider
+  apiKey: string
+  model: string
+  endpoint: string
+  organizationId: string
+  azureApiVersion: string
+  customHeaders: string
+}
 
 const SKILL_KEYWORDS = ['react', 'typescript', 'javascript', 'python', 'java', 'aws', 'docker', 'kubernetes', 'sql', 'data', 'product', 'api', 'node', 'leadership', 'agile', 'communication', 'design', 'testing', 'ci/cd']
 const TEMPLATES: TemplateName[] = ['Modern', 'Classic', 'Technical']
+const LLM_SETTINGS_STORAGE_KEY = 'job-hunt-llm-settings'
+const providerLabels: Record<LlmProvider, string> = {
+  openai: 'ChatGPT / OpenAI',
+  anthropic: 'Claude / Anthropic',
+  azureOpenai: 'Copilot / Azure OpenAI',
+  gemini: 'Gemini / Google AI',
+  custom: 'Custom endpoint',
+}
 
 const initialResume: ResumeData = { fullName: '', email: '', phone: '', location: '', targetRole: '', summary: '', keySkills: [], selectedExperience: [], organization: '' }
+const defaultLlmSettings: LlmSettings = {
+  enabled: false,
+  provider: 'openai',
+  apiKey: '',
+  model: 'gpt-4o-mini',
+  endpoint: '',
+  organizationId: '',
+  azureApiVersion: '2024-10-21',
+  customHeaders: '',
+}
 const initialSections: ResumeSection[] = [
   { id: 'header', label: 'Header', visible: true },
   { id: 'summary', label: 'Professional Summary', visible: true },
@@ -78,9 +107,27 @@ function App() {
   const [insightTab, setInsightTab] = useState<InsightTab>('soft')
   const [insightData, setInsightData] = useState<Record<InsightTab, string[]>>({ soft: [], hard: [], reviews: [], salary: [], values: [] })
   const [agentOutputs, setAgentOutputs] = useState<AgentOutputs | null>(null)
+  const [llmSettings, setLlmSettings] = useState<LlmSettings>(() => {
+    const raw = localStorage.getItem(LLM_SETTINGS_STORAGE_KEY)
+    if (!raw) return defaultLlmSettings
+    try {
+      return { ...defaultLlmSettings, ...JSON.parse(raw) }
+    } catch {
+      return defaultLlmSettings
+    }
+  })
+  const [saveMessage, setSaveMessage] = useState('')
   const previewRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => localStorage.setItem('job-hunt-history', JSON.stringify(history)), [history])
+  useEffect(() => {
+    localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings))
+  }, [llmSettings])
+  useEffect(() => {
+    if (!saveMessage) return
+    const timer = window.setTimeout(() => setSaveMessage(''), 3200)
+    return () => window.clearTimeout(timer)
+  }, [saveMessage])
   useEffect(() => {
     const onFullscreenChange = () => setPreviewFullscreen(Boolean(document.fullscreenElement && document.fullscreenElement === previewRef.current))
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -92,23 +139,61 @@ function App() {
   const filteredExperience = useMemo(() => experienceItems.filter((item) => (companyFilter === 'all' || item.company === companyFilter) && (skillFilter === 'all' || item.skillTags.includes(skillFilter))), [experienceItems, companyFilter, skillFilter])
   const sectionMap = useMemo(() => Object.fromEntries(sections.map((section) => [section.id, section])) as Record<SectionId, ResumeSection>, [sections])
 
+  function getLlmConnectionInfo(settings: LlmSettings) {
+    const providerDefaults: Record<LlmProvider, { endpoint: string; model: string }> = {
+      openai: { endpoint: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o-mini' },
+      anthropic: { endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-3-5-sonnet-latest' },
+      azureOpenai: { endpoint: '', model: 'gpt-4o-mini' },
+      gemini: { endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', model: 'gemini-1.5-pro' },
+      custom: { endpoint: '', model: '' },
+    }
+    const providerDefault = providerDefaults[settings.provider]
+    const endpoint = settings.endpoint.trim() || providerDefault.endpoint
+    const model = settings.model.trim() || providerDefault.model
+    return { endpoint, model }
+  }
+
+  function saveLlmSettings() {
+    localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings))
+    setSaveMessage('LLM integration settings saved.')
+  }
+
   async function callModel(agent: AgentPromptId, payload: Record<string, unknown>) {
-    const apiUrl = import.meta.env.VITE_LLM_API_URL
-    const model = import.meta.env.VITE_LLM_MODEL || 'gpt-4o-mini'
-    const key = import.meta.env.VITE_LLM_API_KEY
+    const configured = llmSettings.enabled ? getLlmConnectionInfo(llmSettings) : null
+    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL
+    const model = configured?.model || import.meta.env.VITE_LLM_MODEL || 'gpt-4o-mini'
+    const key = llmSettings.enabled ? llmSettings.apiKey.trim() : import.meta.env.VITE_LLM_API_KEY
     if (!apiUrl) return null
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (key) headers.Authorization = `Bearer ${key}`
+    if (llmSettings.enabled && llmSettings.organizationId.trim()) headers['OpenAI-Organization'] = llmSettings.organizationId.trim()
+
+    if (llmSettings.enabled && llmSettings.customHeaders.trim()) {
+      llmSettings.customHeaders.split('\n').forEach((line) => {
+        const [headerName, ...valueParts] = line.split(':')
+        if (!headerName || valueParts.length === 0) return
+        headers[headerName.trim()] = valueParts.join(':').trim()
+      })
+    }
+
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages: [
+        { role: 'system', content: AGENT_PROMPTS[agent] },
+        { role: 'user', content: JSON.stringify(payload) },
+      ],
+      temperature: 0.2,
+    }
+
+    if (llmSettings.enabled && llmSettings.provider === 'azureOpenai' && llmSettings.azureApiVersion.trim()) {
+      requestBody.apiVersion = llmSettings.azureApiVersion.trim()
+    }
 
     const res = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: AGENT_PROMPTS[agent] },
-          { role: 'user', content: JSON.stringify(payload) },
-        ],
-        temperature: 0.2,
-      }),
+      headers,
+      body: JSON.stringify(requestBody),
     })
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`)
@@ -296,7 +381,7 @@ function App() {
 
   return (
     <div className="shell">
-      <header className="header"><h1>Job Hunt Co-Pilot</h1><div><button onClick={downloadResumePdf}>Download PDF</button></div></header>
+      <header className="header"><h1>Job Hunt Co-Pilot</h1><div className="header-actions"><button className={`small-action ${tab === 'llmIntegration' ? 'active' : ''}`} onClick={() => setTab('llmIntegration')}>LLM API</button><button onClick={downloadResumePdf}>Download PDF</button></div></header>
       <nav className="tabs"><button className={tab === 'resume' ? 'active' : ''} onClick={() => setTab('resume')}>Resume Builder</button><button className={tab === 'coverLetter' ? 'active' : ''} onClick={() => setTab('coverLetter')}>Cover Letter</button><button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>Submission History</button></nav>
 
       {tab === 'resume' && <>
@@ -339,6 +424,7 @@ function App() {
         </section>
       </>}
 
+      {tab === 'llmIntegration' && <section className="llm-integration"><div className="llm-card"><div className="llm-header"><h3>LLM Provider Settings</h3><label className="toggle-row"><input type="checkbox" checked={llmSettings.enabled} onChange={(e) => setLlmSettings((prev) => ({ ...prev, enabled: e.target.checked }))} /> Enable integration</label></div><p className="llm-subtitle">Configure API settings for your provider. These values are stored locally on this device.</p><div className="llm-grid"><label><span>Provider</span><select value={llmSettings.provider} onChange={(e) => setLlmSettings((prev) => ({ ...prev, provider: e.target.value as LlmProvider }))}>{(Object.keys(providerLabels) as LlmProvider[]).map((provider) => <option key={provider} value={provider}>{providerLabels[provider]}</option>)}</select></label><label><span>Model</span><input value={llmSettings.model} onChange={(e) => setLlmSettings((prev) => ({ ...prev, model: e.target.value }))} placeholder="Model name" /></label><label><span>API key / token</span><input type="password" value={llmSettings.apiKey} onChange={(e) => setLlmSettings((prev) => ({ ...prev, apiKey: e.target.value }))} placeholder="sk-..." /></label><label><span>Endpoint URL</span><input value={llmSettings.endpoint} onChange={(e) => setLlmSettings((prev) => ({ ...prev, endpoint: e.target.value }))} placeholder="https://..." /></label><label><span>Organization / project (optional)</span><input value={llmSettings.organizationId} onChange={(e) => setLlmSettings((prev) => ({ ...prev, organizationId: e.target.value }))} placeholder="org_..." /></label><label><span>Azure API version (optional)</span><input value={llmSettings.azureApiVersion} onChange={(e) => setLlmSettings((prev) => ({ ...prev, azureApiVersion: e.target.value }))} placeholder="2024-10-21" /></label><label className="llm-full"><span>Custom headers (optional, one per line)</span><textarea value={llmSettings.customHeaders} onChange={(e) => setLlmSettings((prev) => ({ ...prev, customHeaders: e.target.value }))} placeholder="x-api-key: abc123" /></label></div><div className="llm-actions"><button className="primary" onClick={saveLlmSettings}>Save settings</button>{saveMessage && <p className="save-message" role="status">{saveMessage}</p>}</div></div><div className="llm-card"><h3>Provider hints</h3><ul><li><strong>ChatGPT / OpenAI:</strong> keep endpoint empty to use the default OpenAI chat completions URL.</li><li><strong>Claude / Anthropic:</strong> set model to a Claude Messages API model and provide your Anthropic token.</li><li><strong>Copilot / Azure OpenAI:</strong> endpoint should be your Azure deployment chat completions URL.</li><li><strong>Gemini / Google AI:</strong> include a Gemini model and API key/token.</li><li><strong>Custom endpoint:</strong> enter endpoint/model and optional custom headers.</li></ul></div></section>}
       {tab === 'coverLetter' && <section className="cover-letter"><div><h3>Notes to include</h3><textarea value={coverLetterNotes} onChange={(e) => setCoverLetterNotes(e.target.value)} /><button className="primary" onClick={generateCoverLetter}>Generate Cover Letter</button></div><div><h3>Preview</h3><textarea value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} /></div></section>}
       {tab === 'history' && <section className="history"><table><thead><tr><th>Date</th><th>Role</th><th>Company</th><th>Template</th></tr></thead><tbody>{history.map((item) => <tr key={item.id}><td>{new Date(item.date).toLocaleString()}</td><td>{item.role}</td><td>{item.company}</td><td>{item.template}</td></tr>)}</tbody></table></section>}
 
