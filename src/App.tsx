@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import { v4 as uuidv4 } from 'uuid'
 import './App.css'
+import { LlmIntegrationTab, initialLlmSettings, type LlmIntegrationSettings } from './components/LlmIntegrationTab'
 
 type TemplateName = 'Modern' | 'Classic' | 'Technical'
 type TabName = 'resume' | 'coverLetter' | 'history' | 'llm'
 type SectionId = 'header' | 'summary' | 'skills' | 'experience' | 'insights' | 'checklist'
-type LlmProvider = 'openai' | 'anthropic' | 'copilot' | 'gemini' | 'custom'
 
 type ExperienceItem = {
   id: string
@@ -50,15 +50,6 @@ type SubmissionHistory = {
   template: TemplateName
   resume: ResumeData
   coverLetter: string
-}
-
-type LlmIntegrationSettings = {
-  provider: LlmProvider
-  apiKey: string
-  model: string
-  endpoint: string
-  organization: string
-  enabled: boolean
 }
 
 const SKILL_KEYWORDS = [
@@ -105,15 +96,6 @@ const initialSections: ResumeSection[] = [
   { id: 'insights', label: 'Application key points', visible: true },
   { id: 'checklist', label: 'Requirement checklist', visible: true },
 ]
-
-const initialLlmSettings: LlmIntegrationSettings = {
-  provider: 'openai',
-  apiKey: '',
-  model: '',
-  endpoint: '',
-  organization: '',
-  enabled: false,
-}
 
 function App() {
   const [tab, setTab] = useState<TabName>('resume')
@@ -798,95 +780,13 @@ function App() {
       )}
 
       {tab === 'llm' && (
-        <section className="llm-config">
-          <div className="llm-header-row">
-            <h3>LLM Provider Configuration</h3>
-            <label className="toggle-inline">
-              <input
-                type="checkbox"
-                checked={llmSettings.enabled}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, enabled: e.target.checked }))
-                }}
-              />
-              Enable integration
-            </label>
-          </div>
-
-          <p className="llm-note">Add the credentials and endpoint you use for ChatGPT, Claude, Copilot, Gemini, or a custom compatible API.</p>
-
-          <div className="llm-grid">
-            <label>
-              Provider
-              <select
-                value={llmSettings.provider}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, provider: e.target.value as LlmProvider }))
-                }}
-              >
-                <option value="openai">ChatGPT / OpenAI</option>
-                <option value="anthropic">Claude / Anthropic</option>
-                <option value="copilot">Copilot / Azure OpenAI</option>
-                <option value="gemini">Gemini / Google AI</option>
-                <option value="custom">Custom endpoint</option>
-              </select>
-            </label>
-
-            <label>
-              API key / token
-              <input
-                type="password"
-                value={llmSettings.apiKey}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, apiKey: e.target.value }))
-                }}
-                placeholder="Paste secret key or token"
-              />
-            </label>
-
-            <label>
-              Model
-              <input
-                value={llmSettings.model}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, model: e.target.value }))
-                }}
-                placeholder="gpt-4o-mini, claude-3-5-sonnet, gemini-1.5-pro..."
-              />
-            </label>
-
-            <label>
-              API endpoint (optional)
-              <input
-                value={llmSettings.endpoint}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, endpoint: e.target.value }))
-                }}
-                placeholder="https://api.openai.com/v1/chat/completions"
-              />
-            </label>
-
-            <label>
-              Organization / tenant (optional)
-              <input
-                value={llmSettings.organization}
-                onChange={(e) => {
-                  setLlmSavedNotice('')
-                  setLlmSettings((prev) => ({ ...prev, organization: e.target.value }))
-                }}
-                placeholder="org_..., tenant id, project id"
-              />
-            </label>
-          </div>
-
-          <button className="primary" onClick={saveLlmSettings}>Save integration settings</button>
-          {llmSavedNotice && <p className="llm-saved">{llmSavedNotice}</p>}
-        </section>
+        <LlmIntegrationTab
+          llmSettings={llmSettings}
+          llmSavedNotice={llmSavedNotice}
+          onChange={setLlmSettings}
+          onSave={saveLlmSettings}
+          onDirty={() => setLlmSavedNotice('')}
+        />
       )}
 
       <button className="chat-toggle" onClick={() => setChatOpen((v) => !v)}>💬</button>
