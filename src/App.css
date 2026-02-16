@@ -29,6 +29,25 @@ body {
   margin: 0;
 }
 
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.small-action {
+  font-size: 0.84rem;
+  padding: 0.38rem 0.58rem;
+  line-height: 1.2;
+}
+
+.small-action.active {
+  background: #1d4ed8;
+  color: white;
+  border-color: #1d4ed8;
+}
+
 .tabs {
   display: flex;
   gap: 0.5rem;
@@ -281,6 +300,76 @@ textarea {
   gap: 1rem;
 }
 
+.llm-integration {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+
+.llm-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 0.8rem;
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.08);
+}
+
+.llm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.llm-subtitle {
+  margin-top: 0.3rem;
+  color: #475569;
+}
+
+.toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.llm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+
+.llm-grid label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.llm-grid label span {
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.llm-grid .llm-full {
+  grid-column: 1 / -1;
+}
+
+.llm-grid textarea {
+  min-height: 80px;
+}
+
+.llm-actions {
+  margin-top: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.save-message {
+  margin: 0;
+  color: #166534;
+  font-weight: 600;
+}
+
 .cover-letter textarea {
   min-height: 350px;
 }
@@ -325,7 +414,9 @@ textarea {
 @media (max-width: 1000px) {
   .workspace,
   .intake,
-  .cover-letter {
+  .cover-letter,
+  .llm-integration,
+  .llm-grid {
     grid-template-columns: 1fr;
   }
 
