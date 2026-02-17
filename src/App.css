@@ -350,11 +350,16 @@ textarea {
 }
 
 .resume-preview.modern {
+  position: relative;
   border: 1px solid #cae6d5;
   border-top: 7px solid #2f855a;
-  border-radius: 1.25rem;
+  border-radius: 2rem;
   box-shadow: 0 20px 40px rgba(35, 110, 79, 0.16);
-  min-height: 700px;
+  min-height: calc(100vh - 140px);
+  max-height: calc(100vh - 140px);
+  display: grid;
+  grid-template-rows: 1fr;
+  padding: 0.9rem;
 }
 
 .resume-preview.classic {
@@ -374,8 +379,13 @@ textarea {
 .preview-toolbar {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
   align-items: center;
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+  right: 1.2rem;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .round-icon-button {
@@ -386,12 +396,19 @@ textarea {
   padding: 0;
   font-size: 1.15rem;
   line-height: 1;
+  pointer-events: auto;
 }
 
-.toolbar-right {
-  margin-left: auto;
-  font-weight: 600;
+.toolbar-zoom-value {
+  font-size: 0.84rem;
+  font-weight: 700;
+  min-width: 48px;
+  text-align: center;
   color: #2f855a;
+}
+
+.toolbar-fullscreen {
+  margin-left: auto;
 }
 
 .section-picker {
@@ -423,10 +440,14 @@ textarea {
 
 .preview-frame {
   overflow: auto;
-  max-height: 68vh;
   border: 1px solid #cee6d7;
-  border-radius: 0.65rem;
-  padding: 0.85rem;
+  border-radius: 1.3rem;
+  padding: 4.6rem 1.1rem 5.2rem;
+  position: relative;
+  display: grid;
+  align-items: start;
+  justify-items: stretch;
+  height: 100%;
 }
 
 .pdf-preview-mode {
@@ -448,7 +469,13 @@ textarea {
 
 .preview-content {
   transform-origin: top left;
-  min-width: 100%;
+  width: 100%;
+  min-height: 1000px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .preview-text,
@@ -468,10 +495,23 @@ textarea {
 }
 
 .preview-bottom-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: inline-flex;
+  align-items: center;
   gap: 0.45rem;
-  margin-top: 0.75rem;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 1rem;
+  z-index: 2;
+}
+
+.preview-bottom-actions button {
+  min-height: 36px;
+  padding: 0.35rem 0.9rem;
+  border-radius: 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  width: auto;
 }
 
 .insights ul,
