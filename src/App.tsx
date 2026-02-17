@@ -1053,6 +1053,9 @@ function App() {
                     >
                       −
                     </button>
+                    <span className="toolbar-zoom-value">
+                      {Math.round(zoom * 100)}%
+                    </span>
                     <button
                       className="round-icon-button"
                       onClick={() =>
@@ -1062,14 +1065,11 @@ function App() {
                       +
                     </button>
                     <button
-                      className="round-icon-button"
+                      className="round-icon-button toolbar-fullscreen"
                       onClick={togglePreviewFullscreen}
                     >
                       {previewFullscreen ? "⤢" : "⛶"}
                     </button>
-                    <span className="toolbar-right">
-                      Zoom {Math.round(zoom * 100)}%
-                    </span>
                   </div>
 
                   {sectionPickerOpen && (
@@ -1208,15 +1208,15 @@ function App() {
 
                   <div className="preview-bottom-actions">
                     <button onClick={() => setEditMode((prev) => !prev)}>
-                      {editMode ? "✅ Done" : "✍️ Edit"}
+                      {editMode ? "Done" : "Edit"}
                     </button>
                     <button
                       onClick={() => setSectionPickerOpen((prev) => !prev)}
                     >
-                      {sectionPickerOpen ? "📂 Hide Sections" : "📁 Sections"}
+                      Sections
                     </button>
                     <button onClick={() => setPreviewPdfMode((prev) => !prev)}>
-                      {previewPdfMode ? "🧾 Exit Preview" : "🧾 Preview PDF"}
+                      Preview
                     </button>
                   </div>
                 </main>
