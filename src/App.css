@@ -721,30 +721,33 @@ textarea {
 }
 
 
-.editor-toolbar {
-  display: inline-flex;
-  gap: 0.3rem;
-  margin: 0 0 0.55rem;
-  padding: 0.35rem;
-  border: 1px solid #cee6d7;
-  border-radius: 0.55rem;
-  background: #f7fbf8;
+.manual-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
 }
 
-.editor-toolbar button {
-  min-height: 30px;
-  min-width: 34px;
-  padding: 0.2rem 0.35rem;
-  font-size: 0.82rem;
+.manual-editor-box {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #b7d8c4;
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbf8 100%);
+  box-shadow: inset 0 1px 1px rgba(12, 46, 31, 0.04);
+  padding: 0.62rem 0.75rem;
+  line-height: 1.35;
+  resize: vertical;
 }
 
-.editable-box {
-  min-height: 56px;
-  border: 1px solid #c9dbd0;
-  border-radius: 0.55rem;
-  padding: 0.55rem;
-  background: #fff;
-  line-height: 1.2;
+.manual-editor-box:focus-visible {
+  outline: 2px solid #2f855a;
+  outline-offset: 1px;
+}
+
+@media (max-width: 760px) {
+  .manual-editor-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .preview-content {

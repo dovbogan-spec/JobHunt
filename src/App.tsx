@@ -197,6 +197,7 @@ function App() {
   ]);
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
+  const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
@@ -229,6 +230,7 @@ function App() {
   });
   const [saveMessage, setSaveMessage] = useState("");
   const previewRef = useRef<HTMLElement | null>(null);
+  const previewResume = editMode ? editorDraft : resume;
 
   useEffect(
     () => localStorage.setItem("job-hunt-history", JSON.stringify(history)),
@@ -776,11 +778,21 @@ function App() {
       return next;
     });
   }
-  function runEditorCommand(command: string, value?: string) {
-    document.execCommand(command, false, value);
+  function startEditingResume() {
+    setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
+    setEditMode(true);
+  }
+  function saveEditingResume() {
+    setResume(editorDraft);
+    setEditMode(false);
+    setSaveMessage("Resume edits saved.");
+  }
+  function cancelEditingResume() {
+    setEditorDraft(resume);
+    setEditMode(false);
   }
   function moveBullet(index: number, direction: "up" | "down") {
-    setResume((prev) => {
+    setEditorDraft((prev) => {
       const next = [...prev.selectedExperience];
       const t = direction === "up" ? index - 1 : index + 1;
       if (t < 0 || t >= next.length) return prev;
@@ -1138,17 +1150,6 @@ function App() {
                     </div>
                   )}
 
-                  {editMode && (
-                    <div className="editor-toolbar">
-                      <button onClick={() => runEditorCommand("insertUnorderedList")}>•</button>
-                      <button onClick={() => runEditorCommand("bold")}>B</button>
-                      <button onClick={() => runEditorCommand("underline")}>U</button>
-                      <button onClick={() => runEditorCommand("italic")}>I</button>
-                      <button onClick={() => runEditorCommand("fontSize", "3")}>A+</button>
-                      <button onClick={() => runEditorCommand("fontSize", "2")}>A-</button>
-                    </div>
-                  )}
-
                   <div
                     className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
                   >
@@ -1162,9 +1163,26 @@ function App() {
                           if (section.id === "header") {
                             return (
                               <div key={section.id}>
-                                <h2>{resume.fullName || "Your Name"}</h2>
-                                <p className="preview-text">{resume.primaryTitle || "Primary Title"} – {resume.specializations[0] || "Specialization 1"} & {resume.specializations[1] || "Specialization 2"}</p>
-                                <p className="preview-text">{resume.email || "email@example.com"} · {resume.phone || "(000) 000-0000"} · {resume.linkedin || "linkedin.com/in/your-profile"} {resume.portfolio ? `· ${resume.portfolio}` : ""}</p>
+                                {editMode ? (
+                                  <div className="manual-editor-grid">
+                                    <input
+                                      value={editorDraft.fullName}
+                                      placeholder="Full name"
+                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, fullName: e.target.value }))}
+                                    />
+                                    <input
+                                      value={editorDraft.primaryTitle}
+                                      placeholder="Primary title"
+                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, primaryTitle: e.target.value }))}
+                                    />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <h2>{previewResume.fullName || "Your Name"}</h2>
+                                    <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
+                                    <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
+                                  </>
+                                )}
                               </div>
                             );
                           }
@@ -1173,20 +1191,19 @@ function App() {
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
                                 {editMode ? (
-                                  <div
-                                    className="editable-box"
-                                    contentEditable
-                                    suppressContentEditableWarning
-                                    onInput={(e) =>
-                                      setResume((prev) => ({
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.profile}
+                                    placeholder="Write a concise 2-4 line profile."
+                                    onChange={(e) =>
+                                      setEditorDraft((prev) => ({
                                         ...prev,
-                                        profile: e.currentTarget.innerHTML,
+                                        profile: e.target.value,
                                       }))
                                     }
-                                    dangerouslySetInnerHTML={{ __html: resume.profile || "Write a concise 2-4 line profile." }}
                                   />
                                 ) : (
-                                  <p className="preview-text" dangerouslySetInnerHTML={{ __html: resume.profile }} />
+                                  <p className="preview-text">{previewResume.profile}</p>
                                 )}
                               </div>
                             );
@@ -1195,27 +1212,26 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
-                                {resume.selectedExperience.map((item, idx) => (
+                                {previewResume.selectedExperience.map((item, idx) => (
                                   <div className="bullet-row" key={item.id}>
                                     {editMode ? (
-                                      <div
-                                        className="editable-box"
-                                        contentEditable
-                                        suppressContentEditableWarning
-                                        onInput={(e) =>
-                                          setResume((prev) => ({
+                                      <textarea
+                                        className="manual-editor-box"
+                                        value={item.text}
+                                        placeholder="Add an experience bullet"
+                                        onChange={(e) =>
+                                          setEditorDraft((prev) => ({
                                             ...prev,
                                             selectedExperience: prev.selectedExperience.map((entry) =>
                                               entry.id === item.id
-                                                ? { ...entry, text: e.currentTarget.innerHTML }
+                                                ? { ...entry, text: e.target.value }
                                                 : entry,
                                             ),
                                           }))
                                         }
-                                        dangerouslySetInnerHTML={{ __html: item.text }}
                                       />
                                     ) : (
-                                      <p className="preview-bullet" dangerouslySetInnerHTML={{ __html: `• ${toPlainText(item.text)}` }} />
+                                      <p className="preview-bullet">• {toPlainText(item.text)}</p>
                                     )}
                                     {editMode && (
                                       <div className="move-controls">
@@ -1225,6 +1241,28 @@ function App() {
                                     )}
                                   </div>
                                 ))}
+                                {editMode && (
+                                  <button
+                                    className="small-action"
+                                    onClick={() =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        selectedExperience: [
+                                          ...prev.selectedExperience,
+                                          {
+                                            id: uuidv4(),
+                                            text: "",
+                                            company: prev.organization || "",
+                                            skillTags: [],
+                                            selected: true,
+                                          },
+                                        ],
+                                      }))
+                                    }
+                                  >
+                                    + Add bullet
+                                  </button>
+                                )}
                               </div>
                             );
                           }
@@ -1233,17 +1271,19 @@ function App() {
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
                                 {editMode ? (
-                                  <input
-                                    value={resume.education.join(" | ")}
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.education.join("\n")}
+                                    placeholder="One education entry per line"
                                     onChange={(e) =>
-                                      setResume((prev) => ({
+                                      setEditorDraft((prev) => ({
                                         ...prev,
-                                        education: e.target.value.split("|").map((x) => x.trim()).filter(Boolean),
+                                        education: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
                                       }))
                                     }
                                   />
                                 ) : (
-                                  resume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)
+                                  previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)
                                 )}
                               </div>
                             );
@@ -1253,17 +1293,19 @@ function App() {
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
                                 {editMode ? (
-                                  <input
-                                    value={resume.keySkills.join(", ")}
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.keySkills.join("\n")}
+                                    placeholder="One skill per line"
                                     onChange={(e) =>
-                                      setResume((prev) => ({
+                                      setEditorDraft((prev) => ({
                                         ...prev,
-                                        keySkills: e.target.value.split(",").map((x) => x.trim()).filter(Boolean),
+                                        keySkills: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
                                       }))
                                     }
                                   />
                                 ) : (
-                                  <p className="preview-text">{resume.keySkills.join(" • ")}</p>
+                                  <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
                                 )}
                               </div>
                             );
@@ -1273,17 +1315,19 @@ function App() {
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
                                 {editMode ? (
-                                  <input
-                                    value={resume.interests.join(", ")}
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.interests.join("\n")}
+                                    placeholder="One interest per line"
                                     onChange={(e) =>
-                                      setResume((prev) => ({
+                                      setEditorDraft((prev) => ({
                                         ...prev,
-                                        interests: e.target.value.split(",").map((x) => x.trim()).filter(Boolean),
+                                        interests: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
                                       }))
                                     }
                                   />
                                 ) : (
-                                  <p className="preview-text">{resume.interests.join(" · ")}</p>
+                                  <p className="preview-text">{previewResume.interests.join(" · ")}</p>
                                 )}
                               </div>
                             );
@@ -1292,17 +1336,19 @@ function App() {
                             <div key={section.id}>
                               <h4>{section.label}</h4>
                               {editMode ? (
-                                <input
-                                  value={resume.languages.join(", ")}
+                                <textarea
+                                  className="manual-editor-box"
+                                  value={editorDraft.languages.join("\n")}
+                                  placeholder="One language per line"
                                   onChange={(e) =>
-                                    setResume((prev) => ({
+                                    setEditorDraft((prev) => ({
                                       ...prev,
-                                      languages: e.target.value.split(",").map((x) => x.trim()).filter(Boolean),
+                                      languages: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
                                     }))
                                   }
                                 />
                               ) : (
-                                <p className="preview-text">{resume.languages.join(" · ")}</p>
+                                <p className="preview-text">{previewResume.languages.join(" · ")}</p>
                               )}
                             </div>
                           );
@@ -1311,9 +1357,14 @@ function App() {
                   </div>
 
                   <div className="preview-bottom-actions">
-                    <button onClick={() => setEditMode((prev) => !prev)}>
-                      {editMode ? "Done" : "Edit"}
-                    </button>
+                    {editMode ? (
+                      <>
+                        <button className="primary" onClick={saveEditingResume}>Save edits</button>
+                        <button onClick={cancelEditingResume}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={startEditingResume}>Edit</button>
+                    )}
                     <button
                       onClick={() => setSectionPickerOpen((prev) => !prev)}
                     >
