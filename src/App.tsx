@@ -867,15 +867,6 @@ function App() {
                   <p className="upload-help">
                     Upload your career history/CV source file.
                   </p>
-                  <button
-                    className="primary generate-btn"
-                    onClick={generateResume}
-                    disabled={analyzingRequirements}
-                  >
-                    {analyzingRequirements
-                      ? "⚙️ Running Agents…"
-                      : "🚀 Generate Resume"}
-                  </button>
                   <select
                     value={template}
                     onChange={(e) =>
@@ -888,6 +879,15 @@ function App() {
                       </option>
                     ))}
                   </select>
+                  <button
+                    className="primary generate-btn"
+                    onClick={generateResume}
+                    disabled={analyzingRequirements}
+                  >
+                    {analyzingRequirements
+                      ? "⚙️ Running Agents…"
+                      : "🚀 Generate Resume"}
+                  </button>
                 </div>
               </section>
 
