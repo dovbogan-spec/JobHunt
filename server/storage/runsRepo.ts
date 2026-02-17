@@ -117,3 +117,21 @@ export async function appendChat(runId: string, role: "user" | "assistant" | "sy
     content,
   ]);
 }
+
+export async function saveExperienceUpload(params: {
+  runId: string;
+  fileUrl: string;
+  filePathname: string;
+  experienceText: string;
+}) {
+  const pool = getDbPool();
+  await pool.query(
+    `update runs
+      set experience_file_url = $2,
+          experience_file_pathname = $3,
+          experience_text = $4,
+          updated_at = now()
+      where id = $1`,
+    [params.runId, params.fileUrl, params.filePathname, params.experienceText],
+  );
+}

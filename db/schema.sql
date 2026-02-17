@@ -16,6 +16,8 @@ create table if not exists runs (
   jd_source_url text,
   jd_text text not null,
   experience_file_id text,
+  experience_file_url text,
+  experience_file_pathname text,
   experience_text text,
   selected_template text not null default 'modern_1',
   created_at timestamptz not null default now(),

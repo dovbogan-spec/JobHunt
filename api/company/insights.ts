@@ -1,9 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import { companyInsightsSchema } from "../../shared/schemas/api";
+import { getConfig } from "../../server/config/edgeConfig";
+import { readJson, sendJson } from "../_utils";
 import { companyInsightsSchema } from "../../shared/schemas/api.js";
 import { readJson, sendJson } from "../_utils.js";
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
+  const config = await getConfig();
+  if (!config.featureFlags.enableCompanyInsights) {
+    return sendJson(res, 200, { skipped: true, reason: "Company insights disabled" });
+  }
 
   const body = await readJson(req);
   const parsed = companyInsightsSchema.safeParse(body);

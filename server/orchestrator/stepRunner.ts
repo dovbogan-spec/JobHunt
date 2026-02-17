@@ -1,3 +1,6 @@
+import { getConfig } from "../config/edgeConfig";
+import { getAgentForStep, maxSteps } from "../agents";
+import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo";
 import { getAgentForStep, maxSteps } from "../agents/index.js";
 import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
@@ -95,6 +98,11 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
 export async function startRun(runId: string) {
   await updateRunStatus(runId, "running");
   await createEvent(runId, "run_started", { runId });
+
+  const config = await getConfig();
+  if (!config.featureFlags.enableCompanyInsights) {
+    await createEvent(runId, "company_insights_skipped", { reason: "Disabled by feature flag" });
+  }
 
   for (let stepIndex = 1; stepIndex <= maxSteps(); stepIndex += 1) {
     const result = await executeStep(runId, stepIndex);
