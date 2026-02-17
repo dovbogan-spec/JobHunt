@@ -1,35 +1,87 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
+import { detectFileKind } from "./fileType.js";
 
 type ExtractResult = {
   text: string;
   method: string;
+  warnings: string[];
 };
 
+const MAX_TEXT_CHARS = 300_000;
+
+function decodeText(bytes: Buffer) {
+  const utf8 = bytes.toString("utf8");
+  if (!utf8.includes("\uFFFD")) return { text: utf8, method: "plain_text_utf8", warning: null };
+
+  const latin1 = bytes.toString("latin1");
+  return {
+    text: latin1,
+    method: "plain_text_latin1_fallback",
+    warning: "Decoded with latin1 fallback due to UTF-8 replacement characters.",
+  };
+}
+
+function sanitizeExtractedText(text: string) {
+  return text
+    .replace(/\u0000/g, "")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, MAX_TEXT_CHARS);
+}
+
+function extractionLooksCorrupt(text: string) {
+  if (text.length < 40) {
+    return "Extracted text is too short. Please upload a text-based PDF/DOCX/TXT.";
+  }
+
+  const controlChars = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
+  const replacements = (text.match(/\uFFFD/g) || []).length;
+  const suspiciousRatio = (controlChars + replacements) / text.length;
+
+  if (suspiciousRatio > 0.02) {
+    return "Extraction output appears corrupted (high replacement/control-character ratio).";
+  }
+
+  return null;
+}
+
 export async function extractExperienceText(fileName: string, contentType: string, bytes: Buffer): Promise<ExtractResult> {
-  const lowerName = fileName.toLowerCase();
-
-  if (contentType.includes("text/plain") || lowerName.endsWith(".txt") || lowerName.endsWith(".md")) {
-    return { text: bytes.toString("utf8"), method: "plain_text" };
+  const detectedKind = detectFileKind(fileName, contentType, bytes);
+  if (!detectedKind) {
+    throw new Error("Unsupported or unrecognized file type. Use a valid PDF, DOCX, or TXT file.");
   }
 
-  if (
-    contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
-    lowerName.endsWith(".docx")
-  ) {
+  if (detectedKind === "txt") {
+    const decoded = decodeText(bytes);
+    const text = sanitizeExtractedText(decoded.text);
+    const corruptionMessage = extractionLooksCorrupt(text);
+    if (corruptionMessage) throw new Error(corruptionMessage);
+
+    const warnings = decoded.warning ? [decoded.warning] : [];
+    return { text, method: decoded.method, warnings };
+  }
+
+  if (detectedKind === "docx") {
     const extracted = await mammoth.extractRawText({ buffer: bytes });
-    return { text: extracted.value, method: "docx_mammoth" };
+    const text = sanitizeExtractedText(extracted.value || "");
+    const corruptionMessage = extractionLooksCorrupt(text);
+    if (corruptionMessage) throw new Error(corruptionMessage);
+
+    return { text, method: "docx_mammoth", warnings: extracted.messages.map((message) => message.message) };
   }
 
-  if (contentType.includes("application/pdf") || lowerName.endsWith(".pdf")) {
-    const parser = new PDFParse({ data: bytes });
-    const extracted = await parser.getText();
-    return { text: extracted.text || "", method: "pdf_parse" };
-  }
+  const parser = new PDFParse({ data: bytes });
+  const extracted = await parser.getText();
+  const text = sanitizeExtractedText(extracted.text || "");
+  const corruptionMessage = extractionLooksCorrupt(text);
+  if (corruptionMessage) throw new Error(corruptionMessage);
 
-  throw new Error("Unsupported file type for extraction");
+  return { text, method: "pdf_parse", warnings: [] };
 }
 
 export function clampExtractionText(text: string) {
-  return text.split("\x00").join("").slice(0, 300_000);
+  return sanitizeExtractedText(text);
 }

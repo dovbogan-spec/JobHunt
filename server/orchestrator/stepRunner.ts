@@ -3,6 +3,16 @@ import { getAgentForStep, maxSteps } from "../agents/index.js";
 import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
 
+function missingRequiredInputs(stepIndex: number, run: Record<string, unknown> | null) {
+  const jdText = typeof run?.jd_text === "string" ? run.jd_text.trim() : "";
+  const experienceText = typeof run?.experience_text === "string" ? run.experience_text.trim() : "";
+
+  if (stepIndex === 1 && !jdText) return "jd_text is required before running the orchestrator.";
+  if (stepIndex >= 2 && !experienceText) return "experience_text is required before running step 2+.";
+  return null;
+}
+
+
 export async function executeStep(runId: string, stepIndex: number, force = false) {
   const agent = getAgentForStep(stepIndex);
   if (!agent) {
@@ -14,6 +24,22 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
 
   if (!force && existing?.status === "succeeded") {
     return { skipped: true, reason: "Step already succeeded" };
+  }
+
+  const requiredInputError = missingRequiredInputs(stepIndex, snapshot.run as Record<string, unknown> | null);
+  if (requiredInputError) {
+    await saveStep({
+      runId,
+      stepIndex,
+      agentName: agent.name,
+      status: "failed",
+      inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+      outputJson: {},
+      error: requiredInputError,
+    });
+    await updateRunStatus(runId, "failed");
+    await createEvent(runId, "run_failed", { stepIndex, error: requiredInputError });
+    return { ok: false, error: requiredInputError };
   }
 
   await createEvent(runId, "step_started", { stepIndex, agent: agent.name });
@@ -45,7 +71,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       stepIndex,
       agentName: agent.name,
       status: "failed",
-      inputJson: {},
+      inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
       outputJson: rawResult,
       error: `Agent output schema mismatch: ${schemaError}`,
     });
@@ -61,7 +87,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       stepIndex,
       agentName: agent.name,
       status: "failed",
-      inputJson: {},
+      inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
       outputJson: result,
       error: errorText,
     });
@@ -79,7 +105,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     stepIndex,
     agentName: agent.name,
     status: "succeeded",
-    inputJson: {},
+    inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
     outputJson: result,
   });
   await createEvent(runId, "step_completed", { stepIndex, agent: agent.name });

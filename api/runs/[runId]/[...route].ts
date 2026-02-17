@@ -15,27 +15,16 @@ import {
   upsertArtifacts,
 } from "../../../server/storage/runsRepo.js";
 import { clampExtractionText, extractExperienceText } from "../../../server/text/extract.js";
+import { detectFileKind } from "../../../server/text/fileType.js";
 import { parseSingleMultipartFile } from "../../../server/text/multipart.js";
 import { chatSchema, runStepSchema } from "../../../shared/schemas/api.js";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-]);
-const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
-
 const styles = StyleSheet.create({
   page: { padding: 24, fontSize: 11 },
   heading: { fontSize: 18, marginBottom: 12 },
   section: { marginBottom: 8 },
 });
-
-function hasAllowedExtension(filename: string) {
-  const lower = filename.toLowerCase();
-  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
 
 function ResumePdf({ name, body }: { name: string; body: string }) {
   return React.createElement(
@@ -129,7 +118,8 @@ export default async function handler(
       if (part.data.byteLength > MAX_UPLOAD_BYTES) {
         return sendJson(res, 413, { ok: false, error: `File too large. Max allowed is ${MAX_UPLOAD_BYTES} bytes.` });
       }
-      if (!ALLOWED_MIME.has(part.contentType) && !hasAllowedExtension(part.filename)) {
+      const kind = detectFileKind(part.filename, part.contentType, part.data);
+      if (!kind) {
         return sendJson(res, 400, { ok: false, error: "Unsupported file type. Use pdf/docx/txt." });
       }
 
@@ -146,8 +136,13 @@ export default async function handler(
 
       return sendJson(res, 200, {
         ok: true,
-        file: { url: uploaded.url, pathname: uploaded.pathname },
-        extracted: { chars: experienceText.length, method: extracted.method },
+        file: {
+          url: uploaded.url,
+          pathname: uploaded.pathname,
+          contentType: uploaded.contentType ?? part.contentType,
+          size: uploaded.size ?? part.data.byteLength,
+        },
+        extracted: { chars: experienceText.length, method: extracted.method, warnings: extracted.warnings },
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";

@@ -1,21 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { sendJson } from "../_utils.js";
 import { clampExtractionText, extractExperienceText } from "../../server/text/extract.js";
+import { detectFileKind } from "../../server/text/fileType.js";
 import { parseSingleMultipartFile } from "../../server/text/multipart.js";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-  "text/markdown",
-]);
-const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
-
-function hasAllowedExtension(filename: string) {
-  const lower = filename.toLowerCase();
-  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
   if (req.method !== "POST") return sendJson(res, 405, { ok: false, error: "Method not allowed" });
@@ -27,7 +16,8 @@ export default async function handler(req: IncomingMessage & { method?: string }
       return sendJson(res, 413, { ok: false, error: `File too large. Max allowed is ${MAX_UPLOAD_BYTES} bytes.` });
     }
 
-    if (!ALLOWED_MIME.has(part.contentType) && !hasAllowedExtension(part.filename)) {
+    const kind = detectFileKind(part.filename, part.contentType, part.data);
+    if (!kind) {
       return sendJson(res, 400, { ok: false, error: "Unsupported file type. Use pdf/docx/txt/md." });
     }
 
@@ -40,6 +30,7 @@ export default async function handler(req: IncomingMessage & { method?: string }
         chars: experienceText.length,
         method: extracted.method,
         text: experienceText,
+        warnings: extracted.warnings,
       },
     });
   } catch (error) {

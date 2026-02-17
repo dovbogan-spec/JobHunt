@@ -1,7 +1,7 @@
-import { put } from "@vercel/blob";
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 import { randomUUID } from "node:crypto";
+import { put } from "@vercel/blob";
+import { clampExtractionText, extractExperienceText } from "../text/extract.js";
+import { detectFileKind } from "../text/fileType.js";
 
 const ALLOWED_MIME = new Set([
   "text/plain",
@@ -43,29 +43,19 @@ export function parseMultipartFormData(body: Buffer, contentTypeHeader: string) 
   throw new Error('Expected multipart field named "file"');
 }
 
-async function extractText(data: Buffer, contentType: string) {
-  if (contentType === "text/plain") {
-    return data.toString("utf8");
-  }
-  if (contentType === "application/pdf") {
-    const parser = new PDFParse({ data });
-    const parsed = await parser.getText();
-    return parsed.text || "";
-  }
-
-  const result = await mammoth.extractRawText({ buffer: data });
-  return result.value || "";
-}
-
 export async function storeExperienceDocument(file: { filename: string; contentType: string; data: Buffer }): Promise<UploadResult> {
   if (!ALLOWED_MIME.has(file.contentType)) {
     throw new Error("Unsupported file type. Allowed: PDF, DOCX, TXT");
+  }
+  if (!detectFileKind(file.filename, file.contentType, file.data)) {
+    throw new Error("Unrecognized file bytes for provided content type.");
   }
   if (file.data.length > MAX_UPLOAD_BYTES) {
     throw new Error(`File too large. Max size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))}MB`);
   }
 
-  const extractedText = (await extractText(file.data, file.contentType)).slice(0, 300_000);
+  const extracted = await extractExperienceText(file.filename, file.contentType, file.data);
+  const extractedText = clampExtractionText(extracted.text);
   const safeName = file.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
   const fileId = `${randomUUID()}-${safeName}`;
 
