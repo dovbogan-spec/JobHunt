@@ -48,9 +48,14 @@ type SubmissionHistory = {
   company: string;
   jobLink: string;
   template: TemplateName;
+  status: "active" | "churned";
   resume: ResumeData;
   coverLetter: string;
   jobDescription: string;
+};
+
+type PersistedSubmissionHistory = Omit<SubmissionHistory, "status"> & {
+  status?: "active" | "churned";
 };
 type RequirementCheck = {
   id: string;
@@ -181,6 +186,12 @@ function scoreClass(score: number) {
 }
 
 function App() {
+  const normalizeHistoryItem = (
+    item: PersistedSubmissionHistory,
+  ): SubmissionHistory => ({
+    ...item,
+    status: item.status ?? "active",
+  });
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
   const [jobLink, setJobLink] = useState("");
@@ -191,7 +202,9 @@ function App() {
   const [coverLetterNotes, setCoverLetterNotes] = useState("");
   const [template, setTemplate] = useState<TemplateName>("Modern");
   const [history, setHistory] = useState<SubmissionHistory[]>(() =>
-    JSON.parse(localStorage.getItem("job-hunt-history") || "[]"),
+    (JSON.parse(localStorage.getItem("job-hunt-history") || "[]") as PersistedSubmissionHistory[]).map(
+      normalizeHistoryItem,
+    ),
   );
   const [companyFilter, setCompanyFilter] = useState("all");
   const [skillFilter, setSkillFilter] = useState("all");
@@ -475,6 +488,7 @@ function App() {
         company: resume.organization,
         jobLink: jobLink.trim(),
         template,
+        status: existingIndex >= 0 ? prev[existingIndex].status : "active",
         resume,
         coverLetter,
         jobDescription: normalizedJobDescription,
@@ -1635,13 +1649,28 @@ function App() {
                     <th>Company</th>
                     <th>Role Link</th>
                     <th>Template</th>
+                    <th>Status</th>
+                    <th aria-label="Delete role" />
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className={item.status === "churned" ? "history-row-churned" : ""}
+                    >
                       <td>{new Date(item.date).toLocaleString()}</td>
-                      <td>{item.role}</td>
+                      <td>
+                        <span
+                          className={
+                            item.status === "churned"
+                              ? "history-role history-role-churned"
+                              : "history-role"
+                          }
+                        >
+                          {item.role}
+                        </span>
+                      </td>
                       <td>{item.company}</td>
                       <td>
                         {item.jobLink ? (
@@ -1653,6 +1682,42 @@ function App() {
                         )}
                       </td>
                       <td>{item.template}</td>
+                      <td>
+                        <select
+                          aria-label={`Set status for ${item.role}`}
+                          className={`history-status ${
+                            item.status === "churned" ? "history-status-churned" : ""
+                          }`}
+                          value={item.status}
+                          onChange={(event) => {
+                            const nextStatus = event.target.value as "active" | "churned";
+                            setHistory((previous) =>
+                              previous.map((entry) =>
+                                entry.id === item.id
+                                  ? { ...entry, status: nextStatus }
+                                  : entry,
+                              ),
+                            );
+                          }}
+                        >
+                          <option value="active">Active</option>
+                          <option value="churned">Churned</option>
+                        </select>
+                      </td>
+                      <td className="history-actions">
+                        <button
+                          type="button"
+                          aria-label={`Delete ${item.role}`}
+                          className="history-delete"
+                          onClick={() =>
+                            setHistory((previous) =>
+                              previous.filter((entry) => entry.id !== item.id),
+                            )
+                          }
+                        >
+                          🗑️
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
