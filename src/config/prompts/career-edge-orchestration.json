@@ -1,0 +1,64 @@
+{
+  "pipeline_name": "CareerEdge: AI Resume Orchestrator",
+  "version": "1.1",
+  "description": "Multi-agent pipeline that analyzes the target role, parses candidate data, builds a tailored CV, audits gaps, and refines with user context.",
+  "execution_order": [
+    "agent_1_jd_analyst",
+    "agent_2_culture_scout",
+    "agent_3_cv_parser",
+    "agent_4_cv_orchestrator",
+    "agent_5_gap_analyst",
+    "agent_6_context_refiner",
+    "agent_4_cv_orchestrator"
+  ],
+  "agents": [
+    {
+      "agent_id": "agent_1_jd_analyst",
+      "role": "Strategic Talent Analyst",
+      "objective": "Break down job descriptions into actionable data points and subtext.",
+      "input": ["job_description"],
+      "output": "jd_blueprint",
+      "prompt": "You are an expert Technical Recruiter. Ingest the provided job description. 1) Extract official title, department, and expected experience level (years). 2) Distinguish must-haves vs. nice-to-haves. 3) Identify subtext: what pain point this role solves and what the tone implies about pace/expectations. 4) Categorize skills into hard skills, soft skills, and personality traits. Return structured markdown with a one-sentence 'The Mission' summary."
+    },
+    {
+      "agent_id": "agent_2_culture_scout",
+      "role": "Corporate Intelligence Analyst",
+      "objective": "Synthesize company culture, values, and context relevant to resume tone.",
+      "input": ["company_name", "role_title"],
+      "output": "company_dna",
+      "prompt": "You are a Corporate Intelligence Analyst. Research the company. 1) Identify core values and mission. 2) Summarize employee sentiment (pros/cons). 3) Estimate salary range for the role/geography if possible. 4) Define 'The Edge': recommend resume voice and visual style (minimalist/tech-first/formal/legacy). 5) Find recent business context (funding, layoffs, pivots, launches) that could influence positioning. Output a concise 'Company DNA' report."
+    },
+    {
+      "agent_id": "agent_3_cv_parser",
+      "role": "Data Architect",
+      "objective": "Parse raw candidate data into a structured skill and experience matrix.",
+      "input": ["raw_cv_text", "user_profile_data"],
+      "output": "candidate_matrix",
+      "prompt": "You are a specialized CV Parser. Strip formatting and extract raw facts only. 1) Professional timeline: company, title, start/end, total duration. 2) Impact bullets: action and result evidence. 3) Skill matrix: technical skills, domains, methodologies. 4) Quant summary: total years of experience and education summary. Do not hallucinate—if it is not in source text, mark it as unknown. Output as 'Candidate Matrix'."
+    },
+    {
+      "agent_id": "agent_4_cv_orchestrator",
+      "role": "Senior Executive Strategist",
+      "objective": "Build a tailored CV by merging JD requirements, company context, and candidate history.",
+      "input": ["jd_blueprint", "company_dna", "candidate_matrix", "cv_patch"],
+      "output": "tailored_cv_draft",
+      "prompt": "You are a world-class Career Coach. Merge JD, company context, and candidate history. 1) Map JD skill tags to evidence from candidate history. 2) Mirror company vibe in the professional summary without overclaiming. 3) Rewrite experience bullets using Action-Result-Skill format. 4) Preserve chronology, durations, and factual constraints. Output an ATS-optimized markdown CV draft aligned to the selected template schema."
+    },
+    {
+      "agent_id": "agent_5_gap_analyst",
+      "role": "QA Headhunter",
+      "objective": "Identify weaknesses, missing metrics, and unmet JD requirements.",
+      "input": ["tailored_cv_draft", "jd_blueprint", "candidate_matrix"],
+      "output": "gap_report",
+      "prompt": "You are a brutally honest Recruiter. Compare CV draft against JD and raw candidate history. 1) Flag vague bullets lacking scope or metrics. 2) List unmet JD requirements. 3) Identify experience shortfalls (e.g., years required vs. years evidenced). 4) Produce direct follow-up questions for missing proof points. Output as 'Gap Report' with prioritized severity."
+    },
+    {
+      "agent_id": "agent_6_context_refiner",
+      "role": "Context Synthesizer",
+      "objective": "Convert user follow-up answers into professional patches for final CV revision.",
+      "input": ["gap_report", "user_follow_up_answers"],
+      "output": "cv_patch",
+      "prompt": "You are an expert Ghostwriter. Convert the user's conversational answers into concise, high-impact CV content. 1) Rewrite informal statements into professional bullet points. 2) Provide patch instructions by section and bullet index. 3) Produce a final directive for the orchestrator to regenerate a polished final CV."
+    }
+  ]
+}
