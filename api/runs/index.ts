@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { createRunSchema } from "../../shared/schemas/api";
-import { createRun, listRuns } from "../../server/storage/runsRepo";
-import { methodNotAllowed, readJson, sendJson } from "../_utils";
+import { createRunSchema } from "../../shared/schemas/api.js";
+import { createRun, listRuns } from "../../server/storage/runsRepo.js";
+import { methodNotAllowed, readJson, sendJson } from "../_utils.js";
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
   if (req.method === "GET") {

@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { basicRateLimit } from "../../../server/orchestrator/rateLimit";
-import { startRun } from "../../../server/orchestrator/stepRunner";
-import { sendJson } from "../../_utils";
+import { basicRateLimit } from "../../../server/orchestrator/rateLimit.js";
+import { startRun } from "../../../server/orchestrator/stepRunner.js";
+import { sendJson } from "../../_utils.js";
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string>; socket?: { remoteAddress?: string } },

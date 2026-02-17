@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { updateRunStatus } from "../../../server/storage/runsRepo";
-import { sendJson } from "../../_utils";
+import { updateRunStatus } from "../../../server/storage/runsRepo.js";
+import { sendJson } from "../../_utils.js";
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string> },

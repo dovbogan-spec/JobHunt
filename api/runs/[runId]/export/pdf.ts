@@ -4,6 +4,7 @@ import React from "react";
 import { getConfig } from "../../../../server/config/edgeConfig";
 import { putExportPdf } from "../../../../server/storage/blob";
 import { getRun, upsertArtifacts } from "../../../../server/storage/runsRepo";
+import { getRun } from "../../../../server/storage/runsRepo.js";
 
 const styles = StyleSheet.create({
   page: { padding: 24, fontSize: 11 },
@@ -34,19 +35,22 @@ export default async function handler(
 ) {
   if (req.method !== "POST") {
     res.statusCode = 405;
-    return res.end("Method not allowed");
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ ok: false, error: "Method not allowed" }));
   }
 
   const runId = req.query?.runId;
   if (!runId) {
     res.statusCode = 400;
-    return res.end("runId is required");
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ ok: false, error: "runId is required" }));
   }
 
   const snapshot = await getRun(runId);
   if (!snapshot.run) {
     res.statusCode = 404;
-    return res.end("Run not found");
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ ok: false, error: "Run not found" }));
   }
 
   const config = await getConfig();
@@ -75,6 +79,7 @@ export default async function handler(
     ]);
   }
 
+  const buffer = await renderToBuffer(React.createElement(ResumePdf, { name: candidateName, body }) as never);
   res.statusCode = 200;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

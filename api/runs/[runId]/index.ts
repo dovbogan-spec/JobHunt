@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getRun } from "../../../server/storage/runsRepo";
-import { methodNotAllowed, sendJson } from "../../_utils";
+import { getRun } from "../../../server/storage/runsRepo.js";
+import { methodNotAllowed, sendJson } from "../../_utils.js";
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string> },
