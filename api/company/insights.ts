@@ -1,8 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { companyInsightsSchema } from "../../shared/schemas/api";
-import { getConfig } from "../../server/config/edgeConfig";
-import { readJson, sendJson } from "../_utils";
 import { companyInsightsSchema } from "../../shared/schemas/api.js";
+import { getConfig } from "../../server/config/edgeConfig.js";
 import { readJson, sendJson } from "../_utils.js";
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {

@@ -1,10 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import React from "react";
-import { getConfig } from "../../../../server/config/edgeConfig";
-import { putExportPdf } from "../../../../server/storage/blob";
-import { getRun, upsertArtifacts } from "../../../../server/storage/runsRepo";
-import { getRun } from "../../../../server/storage/runsRepo.js";
+import { getConfig } from "../../../../server/config/edgeConfig.js";
+import { putExportPdf } from "../../../../server/storage/blob.js";
+import { getRun, upsertArtifacts } from "../../../../server/storage/runsRepo.js";
 
 const styles = StyleSheet.create({
   page: { padding: 24, fontSize: 11 },
@@ -60,8 +59,7 @@ export default async function handler(
 
   const resumeDraft = snapshot.artifacts.find((row: { type: string }) => row.type === "resume_draft");
   const body = JSON.stringify(resumeDraft?.data ?? {}, null, 2).slice(0, 3000);
-
-  const buffer = await renderToBuffer(React.createElement(ResumePdf, { name: candidateName, body }));
+  const buffer = await renderToBuffer(React.createElement(ResumePdf, { name: candidateName, body }) as never);
 
   if (config.featureFlags.storeExportsInBlob) {
     const stored = await putExportPdf(runId, fileName, buffer, "application/pdf");
@@ -79,7 +77,6 @@ export default async function handler(
     ]);
   }
 
-  const buffer = await renderToBuffer(React.createElement(ResumePdf, { name: candidateName, body }) as never);
   res.statusCode = 200;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);

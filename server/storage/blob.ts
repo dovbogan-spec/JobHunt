@@ -15,6 +15,12 @@ function sanitizeFileName(fileName: string) {
     .slice(0, 120);
 }
 
+function normalizeBody(body: Buffer | Uint8Array | ArrayBuffer) {
+  if (Buffer.isBuffer(body)) return body;
+  if (body instanceof ArrayBuffer) return Buffer.from(body);
+  return Buffer.from(body);
+}
+
 export function isBlobConfigured() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
@@ -28,8 +34,9 @@ export async function putExperienceFile(
   const stamp = Date.now();
   const safeFileName = sanitizeFileName(fileName) || "experience_upload";
   const pathname = `runs/${runId}/uploads/${stamp}-${safeFileName}`;
+  const normalizedBody = normalizeBody(body);
 
-  const uploaded = await put(pathname, body, {
+  const uploaded = await put(pathname, normalizedBody, {
     access: "public",
     contentType,
     addRandomSuffix: false,
@@ -38,7 +45,7 @@ export async function putExperienceFile(
   return {
     url: uploaded.url,
     pathname: uploaded.pathname,
-    size: uploaded.size,
+    size: normalizedBody.byteLength,
   };
 }
 
@@ -50,8 +57,9 @@ export async function putExportPdf(
 ): Promise<BlobPutResult> {
   const safeFileName = sanitizeFileName(fileName) || "resume_export.pdf";
   const pathname = `runs/${runId}/exports/${safeFileName}`;
+  const normalizedBody = normalizeBody(body);
 
-  const uploaded = await put(pathname, body, {
+  const uploaded = await put(pathname, normalizedBody, {
     access: "public",
     contentType,
     addRandomSuffix: false,
@@ -60,6 +68,6 @@ export async function putExportPdf(
   return {
     url: uploaded.url,
     pathname: uploaded.pathname,
-    size: uploaded.size,
+    size: normalizedBody.byteLength,
   };
 }
