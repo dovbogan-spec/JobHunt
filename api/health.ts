@@ -1,19 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getConfig, isEdgeConfigConfigured } from "../server/config/edgeConfig";
-import { isBlobConfigured } from "../server/storage/blob";
-import { sendJson } from "./_utils";
-
-export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
-  if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
-
-  const config = await getConfig();
-
-  return sendJson(res, 200, {
-    openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
-    blobConfigured: isBlobConfigured(),
-    edgeConfigConfigured: isEdgeConfigConfigured(),
-    modelDefaults: config.defaultModels,
-    featureFlags: config.featureFlags,
 import { getDbPool } from "../server/storage/db.js";
 import { sendJson } from "./_utils.js";
 
@@ -33,11 +18,7 @@ export default async function handler(req: IncomingMessage & { method?: string }
     checks.database = error instanceof Error ? error.message : "db check failed";
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    checks.blob = "not configured (optional)";
-  } else {
-    checks.blob = "configured";
-  }
+  checks.blob = process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "not configured (optional)";
 
   return sendJson(res, dbOk ? 200 : 500, {
     ok: dbOk,

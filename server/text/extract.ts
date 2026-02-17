@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 type ExtractResult = {
   text: string;
@@ -22,8 +22,9 @@ export async function extractExperienceText(fileName: string, contentType: strin
   }
 
   if (contentType.includes("application/pdf") || lowerName.endsWith(".pdf")) {
-    const extracted = await pdf(bytes);
-    return { text: extracted.text, method: "pdf_parse" };
+    const parser = new PDFParse({ data: bytes });
+    const extracted = await parser.getText();
+    return { text: extracted.text || "", method: "pdf_parse" };
   }
 
   throw new Error("Unsupported file type for extraction");

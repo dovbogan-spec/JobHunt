@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { getConfig } from "../config/edgeConfig";
+import { getConfig } from "../config/edgeConfig.js";
 
 type AgentContext = {
   runId: string;

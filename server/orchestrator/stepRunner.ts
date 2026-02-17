@@ -1,6 +1,4 @@
-import { getConfig } from "../config/edgeConfig";
-import { getAgentForStep, maxSteps } from "../agents";
-import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo";
+import { getConfig } from "../config/edgeConfig.js";
 import { getAgentForStep, maxSteps } from "../agents/index.js";
 import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
