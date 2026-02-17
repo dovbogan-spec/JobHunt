@@ -7,6 +7,7 @@ A Vite + Vercel application for building job-targeted resumes and cover letters 
 - Interactive UI for resume, cover letter, chat, and history flows.
 - Serverless API surface under `api/` for:
   - Runs: create/list/get/start/cancel/step/events
+    - Run sub-routes are consolidated under a single catch-all handler: `api/runs/[runId]/[...route].ts` (helps stay within Vercel Hobby function limits)
   - Experience upload extraction + Vercel Blob persistence (`/api/runs/:runId/upload`)
   - Chat persistence
   - JD URL import (`/api/jd/import`)
