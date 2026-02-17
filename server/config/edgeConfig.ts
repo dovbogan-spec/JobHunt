@@ -37,7 +37,11 @@ function fallbackConfig(): AppConfig {
 }
 
 export function isEdgeConfigConfigured() {
-  return Boolean(process.env.EDGE_CONFIG);
+  const edgeConfigValue = process.env.EDGE_CONFIG?.trim();
+  if (!edgeConfigValue) return false;
+  if (edgeConfigValue === "/") return false;
+  if (["null", "undefined"].includes(edgeConfigValue.toLowerCase())) return false;
+  return true;
 }
 
 export async function getConfig(): Promise<AppConfig> {

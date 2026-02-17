@@ -442,10 +442,14 @@ function App() {
     const normalizedLink = link.trim();
     if (!normalizedLink) return "";
     try {
-      const res = await fetch(
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(normalizedLink)}`,
-      );
-      return (await res.text()).slice(0, 7000);
+      const res = await fetch("/api/jd/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalizedLink }),
+      });
+      if (!res.ok) throw new Error("Unable to import URL");
+      const data = (await res.json()) as { jdText?: string };
+      return (data.jdText || "").slice(0, 7000);
     } catch {
       setChatOpen(true);
       setChatMessages((prev) => [
@@ -856,10 +860,33 @@ function App() {
     doc.save(`${(resume.fullName || "resume").replace(/\s+/g, "_")}.pdf`);
   }
 
-  function onUpload(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => setExperienceDoc(String(reader.result || ""));
-    reader.readAsText(file);
+  async function onUpload(file: File) {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/experience/parse", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        extracted?: { text?: string };
+      };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error || "Could not extract file text");
+      }
+
+      setExperienceDoc(payload.extracted?.text || "");
+    } catch {
+      setChatOpen(true);
+      setChatMessages((prev) => [
+        ...prev,
+        "Could not extract text from that file. Please upload pdf/docx/txt/md or paste plain text.",
+      ]);
+    }
   }
 
   return (
