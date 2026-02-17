@@ -13,6 +13,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "@react-pdf/renderer": "^4.1.6",
+    "@vercel/analytics": "^1.6.1",
     "@vercel/blob": "^2.2.0",
     "@vercel/edge-config": "^1.4.3",
     "jsdom": "^26.0.0",
