@@ -11,6 +11,8 @@ This folder stores data-first assets used by the resume AI pipeline.
 
 - `resume-templates/basic-modern-minimal-single-column.json`
 - `resume-templates/basic-modern-minimal-single-column.html`
+- `resume-templates/technical-clean-modern-one-pager.json`
+- `resume-templates/technical-clean-modern-one-pager.html`
 - `prompts/career-edge-orchestration.json`
 
 Future template designs can be added as additional JSON/HTML pairs inside `resume-templates/`.
