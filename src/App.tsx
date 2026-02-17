@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
 import "./App.css";
 
-type TemplateName = "Modern" | "Classic" | "Technical";
+type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
 type TabName = "resume" | "coverLetter" | "history" | "llmIntegration";
 type SectionId =
   | "header"
@@ -119,7 +119,12 @@ const INSIGHT_TAB_ICONS: Record<InsightTab, string> = {
   salary: "💰",
   values: "🌱",
 };
-const TEMPLATES: TemplateName[] = ["Modern", "Classic", "Technical"];
+const TEMPLATES: TemplateName[] = [
+  "Modern",
+  "Classic",
+  "Technical",
+  "Professional",
+];
 const LLM_SETTINGS_STORAGE_KEY = "job-hunt-llm-settings";
 const providerLabels: Record<LlmProvider, string> = {
   openai: "ChatGPT / OpenAI",

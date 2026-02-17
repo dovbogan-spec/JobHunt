@@ -1,0 +1,246 @@
+{
+  "template_id": "professional_editorial_centered",
+  "meta": {
+    "name": "Professional Editorial (Centered)",
+    "version": "1.0.0",
+    "description": "Editorial-style professional CV with centered headers and boxed experience cards."
+  },
+  "layout": {
+    "page": {
+      "size": "A4",
+      "columns": 1,
+      "margins_mm": {
+        "top": 20,
+        "bottom": 20,
+        "left": 20,
+        "right": 20
+      },
+      "section_spacing_mm": 10
+    },
+    "alignment": {
+      "header": "center",
+      "section_titles": "center",
+      "body": "left",
+      "meta_right_aligned": true
+    },
+    "dividers": {
+      "style": "thin_horizontal_rule",
+      "thickness_px": 1,
+      "color": "#222"
+    },
+    "highlight_cards": {
+      "experience_item": {
+        "border_radius_px": 6,
+        "border_color": "#4FD1C5",
+        "border_width_px": 1.5,
+        "padding_mm": 6,
+        "background": "transparent"
+      }
+    },
+    "typography": {
+      "font_family": "Serif header + Sans body (e.g., Playfair + Inter) or single elegant serif",
+      "name": {
+        "size_pt": "22-24",
+        "weight": "semibold",
+        "color": "#9E9E9E",
+        "letter_spacing": 1.5
+      },
+      "role_title": {
+        "size_pt": 11,
+        "weight": "regular",
+        "color": "#B0B0B0"
+      },
+      "section_header": {
+        "size_pt": 13,
+        "weight": "semibold",
+        "case": "Title Case"
+      },
+      "body": {
+        "size_pt": 10.5,
+        "color": "#333"
+      },
+      "meta": {
+        "size_pt": 9.5,
+        "color": "#777"
+      }
+    }
+  },
+  "cv_structure": {
+    "header": {
+      "name": "{FULL_NAME}",
+      "role_applied_for": "{TARGET_ROLE}",
+      "contact_inline": {
+        "phone": "{PHONE}",
+        "email": "{EMAIL}",
+        "linkedin_or_portfolio": "{LINK}",
+        "location": "{LOCATION}"
+      }
+    },
+    "sections": [
+      {
+        "id": "summary",
+        "title": "Summary",
+        "content_type": "paragraph"
+      },
+      {
+        "id": "experience",
+        "title": "Experience",
+        "content_type": "repeatable_card",
+        "item_template": "experience_card"
+      },
+      {
+        "id": "education",
+        "title": "Education",
+        "content_type": "repeatable_rows",
+        "item_template": "education_row"
+      },
+      {
+        "id": "key_achievements",
+        "title": "Key Achievements",
+        "content_type": "repeatable_rows",
+        "item_template": "achievement_row"
+      },
+      {
+        "id": "skills",
+        "title": "Skills",
+        "content_type": "inline_tags"
+      },
+      {
+        "id": "courses",
+        "title": "Courses",
+        "content_type": "simple_list"
+      }
+    ]
+  },
+  "components": {
+    "experience_card": {
+      "header_row": {
+        "left": {
+          "company_name": "{COMPANY_NAME}",
+          "job_title": "{JOB_TITLE}"
+        },
+        "right": {
+          "location": "{LOCATION}",
+          "date_range": "{START_DATE} – {END_DATE}"
+        }
+      },
+      "company_description": "{COMPANY_SHORT_DESCRIPTION}",
+      "bullets": [
+        "{ACTION + SCOPE + IMPACT + METRIC}",
+        "{ACTION + SYSTEM/PROCESS + RESULT}",
+        "{ACTION + COLLABORATION + OUTCOME}"
+      ],
+      "layout_rules": {
+        "show_card_border": true,
+        "meta_right_aligned": true,
+        "max_bullets": 4
+      }
+    },
+    "education_row": {
+      "left": {
+        "institution": "{SCHOOL_OR_UNIVERSITY}",
+        "degree_and_field": "{DEGREE_AND_FIELD}"
+      },
+      "right": {
+        "date_range": "{START_DATE} – {END_DATE}"
+      },
+      "layout_rules": {
+        "two_line_left_block": true,
+        "date_right_aligned": true
+      }
+    },
+    "achievement_row": {
+      "icon": "diamond",
+      "title": "{ACHIEVEMENT_TITLE}",
+      "description": "{WHAT_WAS_DONE_AND_IMPACT}"
+    },
+    "skill_tag": {
+      "label": "{SKILL_NAME}"
+    },
+    "course_item": {
+      "title": "{COURSE_TITLE}"
+    }
+  },
+  "rendering_rules": {
+    "section_order": [
+      "header",
+      "summary",
+      "experience",
+      "education",
+      "key_achievements",
+      "skills",
+      "courses"
+    ],
+    "experience": {
+      "max_items": 3,
+      "prefer_latest_first": true,
+      "keep_card_together": true
+    },
+    "summary": {
+      "max_lines": 3,
+      "max_chars": 350
+    },
+    "skills": {
+      "display_mode": "inline_wrap",
+      "max_per_row": 6
+    },
+    "pagination": {
+      "avoid_splitting_cards": true,
+      "keep_section_title_with_next_block": true
+    }
+  },
+  "tailoring_controls": {
+    "dynamic_role_header": true,
+    "section_visibility": {
+      "summary": true,
+      "key_achievements": "optional",
+      "courses": "optional"
+    },
+    "emphasis_profiles": {
+      "technical": {
+        "boost": [
+          "skills",
+          "experience"
+        ]
+      },
+      "product": {
+        "boost": [
+          "experience",
+          "key_achievements"
+        ]
+      },
+      "junior": {
+        "boost": [
+          "education",
+          "courses"
+        ]
+      }
+    },
+    "bullet_style": {
+      "format": "Action Verb + What + How + Impact",
+      "metrics_required": true,
+      "forbidden_phrases": [
+        "responsible for",
+        "worked on"
+      ]
+    }
+  },
+  "json_schema": {
+    "header": {
+      "full_name": "",
+      "target_role": "",
+      "contact": {
+        "phone": "",
+        "email": "",
+        "link": "",
+        "location": ""
+      }
+    },
+    "summary": "",
+    "experience": [],
+    "education": [],
+    "key_achievements": [],
+    "skills": [],
+    "courses": []
+  }
+}
