@@ -40,6 +40,7 @@ type SubmissionHistory = {
   date: string;
   role: string;
   company: string;
+  jobLink: string;
   template: TemplateName;
   resume: ResumeData;
   coverLetter: string;
@@ -98,6 +99,20 @@ const INSIGHT_TABS: InsightTab[] = [
   "salary",
   "values",
 ];
+const INSIGHT_TAB_LABELS: Record<InsightTab, string> = {
+  soft: "Soft Skills",
+  hard: "Hard Skills",
+  reviews: "Reviews",
+  salary: "Salary",
+  values: "Values",
+};
+const INSIGHT_TAB_ICONS: Record<InsightTab, string> = {
+  soft: "🤝",
+  hard: "🧠",
+  reviews: "⭐",
+  salary: "💰",
+  values: "🌱",
+};
 const TEMPLATES: TemplateName[] = ["Modern", "Classic", "Technical"];
 const LLM_SETTINGS_STORAGE_KEY = "job-hunt-llm-settings";
 const providerLabels: Record<LlmProvider, string> = {
@@ -168,6 +183,7 @@ function App() {
   const [editMode, setEditMode] = useState(false);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [sections, setSections] = useState<ResumeSection[]>(initialSections);
   const [requirementChecks, setRequirementChecks] = useState<
@@ -438,6 +454,7 @@ function App() {
         date: new Date().toISOString(),
         role: resume.targetRole,
         company: resume.organization,
+        jobLink: jobLink.trim(),
         template,
         resume,
         coverLetter,
@@ -822,26 +839,38 @@ function App() {
       </header>
       <div className="app-layout">
         <div className="main-content">
-          <nav className="tabs">
+          <div className="tabs-header">
             <button
-              className={tab === "resume" ? "active" : ""}
-              onClick={() => setTab("resume")}
+              className="icon-toggle-btn"
+              onClick={() => setTabsCollapsed((prev) => !prev)}
+              title={tabsCollapsed ? "Open tabs" : "Collapse tabs"}
+              aria-label={tabsCollapsed ? "Open tabs" : "Collapse tabs"}
             >
-              📝 Resume Builder
+              ☰
             </button>
-            <button
-              className={tab === "coverLetter" ? "active" : ""}
-              onClick={() => setTab("coverLetter")}
-            >
-              ✉️ Cover Letter
-            </button>
-            <button
-              className={tab === "history" ? "active" : ""}
-              onClick={() => setTab("history")}
-            >
-              📚 Submission History
-            </button>
-          </nav>
+          </div>
+          {!tabsCollapsed && (
+            <nav className="tabs">
+              <button
+                className={tab === "resume" ? "active" : ""}
+                onClick={() => setTab("resume")}
+              >
+                📝 Resume Builder
+              </button>
+              <button
+                className={tab === "coverLetter" ? "active" : ""}
+                onClick={() => setTab("coverLetter")}
+              >
+                ✉️ Cover Letter
+              </button>
+              <button
+                className={tab === "history" ? "active" : ""}
+                onClick={() => setTab("history")}
+              >
+                📚 Submission History
+              </button>
+            </nav>
+          )}
 
           {tab === "resume" && (
             <>
@@ -893,89 +922,93 @@ function App() {
 
               <section className="workspace">
                 <aside className="skills-panel">
-                  <div className="panel-header">
-                    <h3>🧠 Experience Repository</h3>
-                    <button
-                      className="small-action"
-                      onClick={() => setFiltersCollapsed((prev) => !prev)}
-                    >
-                      {filtersCollapsed
-                        ? "⬇️ Expand Filters"
-                        : "⬆️ Collapse Filters"}
-                    </button>
-                  </div>
-
-                  {!filtersCollapsed && (
-                    <div className="filters-line">
-                      <select
-                        value={companyFilter}
-                        onChange={(e) => setCompanyFilter(e.target.value)}
+                  <section className="panel-window">
+                    <div className="panel-header">
+                      <h3>🧠 Experience Repository</h3>
+                      <button
+                        className="icon-toggle-btn"
+                        onClick={() => setFiltersCollapsed((prev) => !prev)}
+                        title={filtersCollapsed ? "Show filters" : "Hide filters"}
+                        aria-label={
+                          filtersCollapsed ? "Show filters" : "Hide filters"
+                        }
                       >
-                        {companies.map((company) => (
-                          <option key={company} value={company}>
-                            {company}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={skillFilter}
-                        onChange={(e) => setSkillFilter(e.target.value)}
-                      >
-                        {skills.map((skill) => (
-                          <option key={skill} value={skill}>
-                            {skill}
-                          </option>
-                        ))}
-                      </select>
-                      <button onClick={applySelectedExperience}>
-                        ✅ Apply Selected
+                        ☰
                       </button>
                     </div>
-                  )}
 
-                  <div className="experience-list">
-                    {paginatedExperience.map((item) => (
-                      <label key={item.id}>
-                        <span>
-                          <input
-                            type="checkbox"
-                            checked={item.selected}
-                            onChange={() => toggleExperience(item.id)}
-                          />{" "}
-                          {item.text}
-                        </span>
-                        <small>
-                          {item.company} · {item.skillTags.join(", ")}
-                        </small>
-                      </label>
-                    ))}
-                  </div>
+                    {!filtersCollapsed && (
+                      <div className="filters-line">
+                        <select
+                          value={companyFilter}
+                          onChange={(e) => setCompanyFilter(e.target.value)}
+                        >
+                          {companies.map((company) => (
+                            <option key={company} value={company}>
+                              {company}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={skillFilter}
+                          onChange={(e) => setSkillFilter(e.target.value)}
+                        >
+                          {skills.map((skill) => (
+                            <option key={skill} value={skill}>
+                              {skill}
+                            </option>
+                          ))}
+                        </select>
+                        <button onClick={applySelectedExperience}>
+                          ✅ Apply Selected
+                        </button>
+                      </div>
+                    )}
 
-                  <div className="experience-pagination">
-                    <button
-                      onClick={() =>
-                        setExperiencePage((prev) => Math.max(1, prev - 1))
-                      }
-                      disabled={experiencePage <= 1}
-                    >
-                      ◀
-                    </button>
-                    <span>
-                      Page {experiencePage} of {totalExperiencePages}
-                    </span>
-                    <button
-                      onClick={() =>
-                        setExperiencePage((prev) =>
-                          Math.min(totalExperiencePages, prev + 1),
-                        )
-                      }
-                      disabled={experiencePage >= totalExperiencePages}
-                    >
-                      ▶
-                    </button>
-                  </div>
+                    <div className="experience-list">
+                      {paginatedExperience.map((item) => (
+                        <label key={item.id}>
+                          <span>
+                            <input
+                              type="checkbox"
+                              checked={item.selected}
+                              onChange={() => toggleExperience(item.id)}
+                            />{" "}
+                            {item.text}
+                          </span>
+                          <small>
+                            {item.company} · {item.skillTags.join(", ")}
+                          </small>
+                        </label>
+                      ))}
+                    </div>
 
-                  <section className="job-insights-panel">
+                    <div className="experience-pagination">
+                      <button
+                        onClick={() =>
+                          setExperiencePage((prev) => Math.max(1, prev - 1))
+                        }
+                        disabled={experiencePage <= 1}
+                      >
+                        ◀
+                      </button>
+                      <span>
+                        Page {experiencePage} of {totalExperiencePages}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setExperiencePage((prev) =>
+                            Math.min(totalExperiencePages, prev + 1),
+                          )
+                        }
+                        disabled={experiencePage >= totalExperiencePages}
+                      >
+                        ▶
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="panel-window job-insights-panel">
                     <h4>Job requirements and info</h4>
                     <div className="job-insights-layout">
                       <div className="job-insight-icons">
@@ -984,14 +1017,19 @@ function App() {
                             key={name}
                             className={`insight-icon-btn ${insightTab === name ? "active" : ""}`}
                             onClick={() => setInsightTab(name)}
-                            title={name}
+                            title={INSIGHT_TAB_LABELS[name]}
                           >
-                            {name.charAt(0).toUpperCase()}
+                            <span className="insight-pill-icon">
+                              {INSIGHT_TAB_ICONS[name]}
+                            </span>
+                            <span className="insight-pill-label">
+                              {INSIGHT_TAB_LABELS[name]}
+                            </span>
                           </button>
                         ))}
                       </div>
                       <div className="job-insight-content">
-                        <h5>{insightTab}</h5>
+                        <h5>{INSIGHT_TAB_LABELS[insightTab]}</h5>
                         <ul>
                           {(insightData[insightTab] || []).map((insight) => (
                             <li key={insight}>{insight}</li>
@@ -1408,6 +1446,7 @@ function App() {
                     <th>Date</th>
                     <th>Role</th>
                     <th>Company</th>
+                    <th>Role Link</th>
                     <th>Template</th>
                   </tr>
                 </thead>
@@ -1417,6 +1456,15 @@ function App() {
                       <td>{new Date(item.date).toLocaleString()}</td>
                       <td>{item.role}</td>
                       <td>{item.company}</td>
+                      <td>
+                        {item.jobLink ? (
+                          <a href={item.jobLink} target="_blank" rel="noreferrer">
+                            Open role
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>{item.template}</td>
                     </tr>
                   ))}
