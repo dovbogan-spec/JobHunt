@@ -706,6 +706,53 @@ textarea {
   font-weight: 600;
 }
 
+.history-row-churned {
+  opacity: 0.62;
+  background: #fff5f5;
+}
+
+.history-role {
+  font-weight: 600;
+}
+
+.history-role-churned {
+  color: #9f1d1d;
+  background: #ffe4e4;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.history-status {
+  min-width: 105px;
+}
+
+.history-status-churned {
+  color: #9f1d1d;
+  background: #fff0f0;
+  border-color: #f2b6b6;
+}
+
+.history-actions {
+  text-align: right;
+}
+
+.history-delete {
+  background: #fff1f1;
+  color: #d72c2c;
+  border: 1px solid #f2b6b6;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.history-delete:hover {
+  background: #ffe0e0;
+}
+
 .chat-sidebar {
   transition:
     width 0.25s ease,
