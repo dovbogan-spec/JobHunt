@@ -1,0 +1,52 @@
+{
+  "coreUx": {
+    "agent1": [
+      "Accept pasted JD text or JD URL",
+      "Fetch JD URL server-side with robust timeout/UA",
+      "Extract readable job description text",
+      "Store normalized jd_text and parsed_jd artifact"
+    ],
+    "agent2": [
+      "Upload PDF/DOCX/TXT",
+      "Store original file in Blob",
+      "Extract clean text server-side",
+      "Persist extracted text as runs.experience_text",
+      "Never persist binary garbage as text"
+    ],
+    "agent3": [
+      "Generate companies -> roles -> bullets (action/impact/scope/skillTags)",
+      "Validate schema and persist actionable_points artifact"
+    ],
+    "agent4": [
+      "Run only after agents 1-3",
+      "Build cv_draft from persisted artifacts",
+      "Do not re-parse raw uploads",
+      "Only rerun when inputs change or force=true"
+    ],
+    "refinement": [
+      "After cv_draft, surface missing/weak skills",
+      "Each item supports Improve this skill scoped chat",
+      "Chat asks for evidence and proposes bullet edits",
+      "Persist cv_revision and patch cv_draft"
+    ],
+    "llmHealth": [
+      "Expose /api/health with OpenAI server-side ping",
+      "UI indicator red/gray when unavailable and green when healthy"
+    ],
+    "reliability": [
+      "Disable buttons while requests run",
+      "Prevent double-trigger race conditions"
+    ]
+  },
+  "architecture": {
+    "stateModel": [
+      "runs table keeps canonical text and selection state",
+      "run_steps is idempotent and stores io json + status",
+      "run_artifacts stores typed JSON artifacts",
+      "chat_messages stores run-scoped or skill-scoped chat"
+    ],
+    "contracts": "All contracts are defined in shared/schemas",
+    "storage": "Blob for raw files/PDF exports only; DB for structured artifacts"
+  },
+  "deployEnv": ["OPENAI_API_KEY", "OPENAI_MODEL", "DATABASE_URL", "BLOB_READ_WRITE_TOKEN"]
+}

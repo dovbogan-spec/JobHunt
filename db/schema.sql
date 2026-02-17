@@ -52,6 +52,7 @@ create table if not exists chat_messages (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references runs(id) on delete cascade,
   role text not null check (role in ('user','assistant','system')),
+  skill_tag text,
   content text not null,
   created_at timestamptz not null default now()
 );

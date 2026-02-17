@@ -1,0 +1,9 @@
+{
+  "steps": [
+    {"step": 1, "name": "agent_1_jd_parser", "inputs": ["runs.jd_text OR runs.jd_source_url"], "outputs": ["parsed_jd"]},
+    {"step": 2, "name": "agent_2_experience_ingestion", "inputs": ["runs.experience_text"], "outputs": ["parsed_experience"]},
+    {"step": 3, "name": "agent_3_actionable_points", "inputs": ["parsed_experience", "runs.experience_text"], "outputs": ["actionable_points"]},
+    {"step": 4, "name": "agent_4_cv_builder", "inputs": ["parsed_jd", "actionable_points", "runs.selected_template"], "outputs": ["cv_draft", "skill_scores"]}
+  ],
+  "refinement": {"endpoint": "/api/runs/:id/skills/:skillTag/chat", "writes": ["cv_draft", "cv_revisions", "chat_messages"]}
+}
