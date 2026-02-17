@@ -1,24 +1,61 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { getDbPool } from "../../../server/storage/db";
 import { sendJson } from "../../_utils";
+import { putExperienceFile } from "../../../server/storage/blob";
+import { saveExperienceUpload } from "../../../server/storage/runsRepo";
+import { clampExtractionText, extractExperienceText } from "../../../server/text/extract";
+import { parseSingleMultipartFile } from "../../../server/text/multipart";
+
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+]);
+const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".txt", ".md"];
+
+function hasAllowedExtension(filename: string) {
+  const lower = filename.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string> },
   res: ServerResponse,
 ) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
   const runId = req.query?.runId;
   if (!runId) return sendJson(res, 400, { error: "runId is required" });
 
-  // MVP placeholder: expects plain text body extracted by client.
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of req) chunks.push(chunk as Uint8Array);
-  const experienceText = Buffer.concat(chunks).toString("utf8").slice(0, 300_000);
+  try {
+    const part = await parseSingleMultipartFile(req, "file");
 
-  await getDbPool().query(
-    `update runs set experience_text = $2, updated_at = now() where id = $1`,
-    [runId, experienceText],
-  );
+    if (part.data.byteLength > MAX_UPLOAD_BYTES) {
+      return sendJson(res, 413, { error: `File too large. Max allowed is ${MAX_UPLOAD_BYTES} bytes.` });
+    }
 
-  return sendJson(res, 200, { ok: true, extractedChars: experienceText.length });
+    if (!ALLOWED_MIME.has(part.contentType) && !hasAllowedExtension(part.filename)) {
+      return sendJson(res, 400, { error: "Unsupported file type. Use pdf/docx/txt." });
+    }
+
+    const uploaded = await putExperienceFile(runId, part.filename, part.data, part.contentType);
+    const extracted = await extractExperienceText(part.filename, part.contentType, part.data);
+    const experienceText = clampExtractionText(extracted.text);
+
+    await saveExperienceUpload({
+      runId,
+      fileUrl: uploaded.url,
+      filePathname: uploaded.pathname,
+      experienceText,
+    });
+
+    return sendJson(res, 200, {
+      ok: true,
+      file: { url: uploaded.url, pathname: uploaded.pathname },
+      extracted: { chars: experienceText.length, method: extracted.method },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed";
+    return sendJson(res, 400, { error: message });
+  }
 }

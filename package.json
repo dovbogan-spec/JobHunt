@@ -10,15 +10,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@react-pdf/renderer": "^4.1.6",
+    "@vercel/blob": "^2.2.0",
+    "@vercel/edge-config": "^1.4.3",
+    "jsdom": "^26.0.0",
     "jspdf": "^4.1.0",
+    "mammoth": "^1.11.0",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.13.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "uuid": "^13.0.0",
-    "zod": "^3.24.1",
-    "pg": "^8.13.1",
-    "@react-pdf/renderer": "^4.1.6",
-    "jsdom": "^26.0.0",
-    "@mozilla/readability": "^0.6.0"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
