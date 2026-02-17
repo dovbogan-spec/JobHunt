@@ -1,0 +1,3 @@
+# Agent 1 Prompt Placeholder
+Replace this file with your production prompt for agent 1.
+The orchestrator reads prompt files from server/agents/prompts.
