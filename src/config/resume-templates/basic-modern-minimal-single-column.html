@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{FULL_NAME} - Resume</title>
+    <style>
+      body { font-family: Inter, Calibri, Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.2; margin: 0; color: #111; }
+      .page { padding: 30px 36px; }
+      .header { margin-bottom: 14px; }
+      .name { font-size: 22px; font-weight: 700; }
+      .title { font-size: 13px; margin-top: 3px; }
+      .contact { margin-top: 4px; font-size: 10.5px; }
+      .section { margin-top: 14px; }
+      .section h2 { margin: 0 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+      .row { display: flex; justify-content: space-between; gap: 10px; }
+      .company { font-weight: 700; }
+      ul { margin: 4px 0 0 16px; padding: 0; }
+      li { margin: 2px 0; }
+      .footer { position: fixed; bottom: 12px; left: 36px; right: 36px; display: flex; justify-content: space-between; font-size: 9px; color: #444; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <div class="name">{FULL_NAME}</div>
+        <div class="title">{PRIMARY_TITLE} – {SPECIALIZATION_1} &amp; {SPECIALIZATION_2}</div>
+        <div class="contact">{EMAIL}  {PHONE}  {LINKEDIN}  {PORTFOLIO_OR_GITHUB(optional)}</div>
+      </header>
+
+      <section class="section" id="profile">
+        <h2>Profile</h2>
+        <p>{PROFILE_SUMMARY_2TO4_LINES}</p>
+      </section>
+
+      <section class="section" id="experience">
+        <h2>Professional Experience</h2>
+        <!-- repeat experience_item -->
+        <article class="experience-item">
+          <div class="row"><span class="company">{COMPANY}</span><span>{START_MMYYYY} – {END_MMYYYY_or_Present}</span></div>
+          <div class="row"><span>{ROLE_TITLE}</span><span></span></div>
+          <ul>
+            <li>{ACTION + SCOPE + IMPACT + METRIC}</li>
+            <li>{ACTION + SYSTEM/ARCH + OUTCOME}</li>
+            <li>{ACTION + CROSS_FUNCTIONAL + RESULT}</li>
+            <li>{ACTION + REUSABLE_PATTERN + SCALE}</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="section" id="education">
+        <h2>Education</h2>
+        <!-- repeat education_item -->
+        <div>{DEGREE}, {FIELD}, {INSTITUTION}</div>
+        <div>Final Project: {ONE_LINE_PROJECT_SUMMARY}</div>
+      </section>
+
+      <section class="section" id="skills">
+        <h2>Skills</h2>
+        <!-- repeat skill_group -->
+        <div><strong>{CATEGORY_NAME}</strong></div>
+        <ul>
+          <li>{CAPABILITY_1}</li>
+          <li>{CAPABILITY_2}</li>
+          <li>{CAPABILITY_3}</li>
+          <li>{TOOLS_AND_PLATFORMS}</li>
+        </ul>
+      </section>
+
+      <section class="section" id="interests">
+        <h2>Interests</h2>
+        <p>{INTEREST_1}, {INTEREST_2}, {INTEREST_3}</p>
+      </section>
+
+      <section class="section" id="languages">
+        <h2>Languages</h2>
+        <!-- repeat language_item -->
+        <div>{LANGUAGE_NAME} — {Native/Bilingual|Fluent|Professional|Conversational|Basic}</div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>{FULL_NAME}</span>
+      <span>Page {X} of {Y}</span>
+    </footer>
+  </body>
+</html>
