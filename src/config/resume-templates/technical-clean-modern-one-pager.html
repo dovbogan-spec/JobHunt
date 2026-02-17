@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{FULL_NAME} - Technical CV</title>
+    <style>
+      body {
+        font-family: Inter, Helvetica, Calibri, Arial, sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.25;
+        margin: 0;
+        color: #333333;
+      }
+      .page {
+        padding: 18mm;
+      }
+      .header {
+        margin-bottom: 6mm;
+      }
+      .name {
+        font-size: 26pt;
+        font-weight: 700;
+        color: #bdbdbd;
+        letter-spacing: 1.2px;
+      }
+      .role {
+        font-size: 12pt;
+        color: #9e9e9e;
+        font-weight: 500;
+      }
+      .contact {
+        margin-top: 4px;
+        font-size: 9.5pt;
+        color: #777777;
+      }
+      .section {
+        margin-top: 6mm;
+      }
+      .section h2 {
+        margin: 0;
+        font-size: 12pt;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.1px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 2px;
+      }
+      .section-content {
+        margin-top: 3mm;
+      }
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 9.5pt;
+        color: #777777;
+      }
+      .item-title {
+        font-weight: 700;
+      }
+      ul {
+        margin: 4px 0 0 16px;
+        padding: 0;
+      }
+      li {
+        margin: 2px 0;
+      }
+      .inline-tags,
+      .inline-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tag {
+        border: 1px solid #d0d0d0;
+        border-radius: 12px;
+        padding: 2px 8px;
+        font-size: 9.5pt;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <div class="name">{FULL_NAME}</div>
+        <div class="role">{TARGET_ROLE}</div>
+        <div class="contact">{PHONE} · {EMAIL} · {LINK} · {LOCATION}</div>
+      </header>
+
+      <section class="section" id="summary">
+        <h2>Summary</h2>
+        <div class="section-content">{SUMMARY_PARAGRAPH}</div>
+      </section>
+
+      <section class="section" id="experience">
+        <h2>Experience</h2>
+        <div class="section-content">
+          <article>
+            <div class="item-title">{JOB_TITLE} · {COMPANY_NAME}</div>
+            <div class="meta-row">
+              <span>{START_DATE} – {END_DATE}</span>
+              <span>{LOCATION}</span>
+            </div>
+            <div>{COMPANY_SHORT_DESCRIPTION}</div>
+            <ul>
+              <li>{ACHIEVEMENT_1_WITH_IMPACT}</li>
+              <li>{ACHIEVEMENT_2_WITH_METRIC}</li>
+              <li>{ACHIEVEMENT_3_WITH_SCOPE}</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="education">
+        <h2>Education</h2>
+        <div class="section-content">
+          <div class="item-title">{DEGREE_AND_FIELD}</div>
+          <div class="meta-row">
+            <span>{INSTITUTION_NAME}</span>
+            <span>{START_DATE} – {END_DATE}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="key-achievements">
+        <h2>Key Achievements</h2>
+        <div class="section-content">
+          <div class="item-title">{ACHIEVEMENT_TITLE}</div>
+          <div>{WHAT_WAS_DONE_AND_IMPACT}</div>
+        </div>
+      </section>
+
+      <section class="section" id="skills">
+        <h2>Skills</h2>
+        <div class="section-content inline-tags">
+          <span class="tag">{SKILL_NAME}</span>
+          <span class="tag">{SKILL_NAME}</span>
+          <span class="tag">{SKILL_NAME}</span>
+        </div>
+      </section>
+
+      <section class="section" id="courses">
+        <h2>Courses</h2>
+        <div class="section-content">
+          <ul>
+            <li>{COURSE_NAME} ({PROVIDER})</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section" id="interests">
+        <h2>Interests</h2>
+        <div class="section-content inline-list">{INTEREST_OR_PASSION}, {INTEREST_OR_PASSION}</div>
+      </section>
+    </main>
+  </body>
+</html>
