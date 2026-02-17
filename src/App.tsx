@@ -175,15 +175,6 @@ function scoreClass(score: number) {
   return "score-bad";
 }
 
-function parseSpecializations(raw: string): [string, string] {
-  const values = raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 2);
-  return [values[0] || "", values[1] || ""];
-}
-
 function App() {
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
@@ -935,51 +926,9 @@ function App() {
                   <p className="upload-help">
                     Upload your career history/CV source file.
                   </p>
-                  <input
-                    value={resume.fullName}
-                    onChange={(e) =>
-                      setResume((prev) => ({ ...prev, fullName: e.target.value }))
-                    }
-                    placeholder="Full name"
-                  />
-                  <input
-                    value={resume.primaryTitle}
-                    onChange={(e) =>
-                      setResume((prev) => ({ ...prev, primaryTitle: e.target.value }))
-                    }
-                    placeholder="Primary title"
-                  />
-                  <input
-                    value={resume.specializations.join(", ")}
-                    onChange={(e) =>
-                      setResume((prev) => ({
-                        ...prev,
-                        specializations: parseSpecializations(e.target.value),
-                      }))
-                    }
-                    placeholder="Specializations (comma-separated)"
-                  />
-                  <input
-                    value={resume.email}
-                    onChange={(e) =>
-                      setResume((prev) => ({ ...prev, email: e.target.value }))
-                    }
-                    placeholder="Email"
-                  />
-                  <input
-                    value={resume.phone}
-                    onChange={(e) =>
-                      setResume((prev) => ({ ...prev, phone: e.target.value }))
-                    }
-                    placeholder="Phone"
-                  />
-                  <input
-                    value={resume.linkedin}
-                    onChange={(e) =>
-                      setResume((prev) => ({ ...prev, linkedin: e.target.value }))
-                    }
-                    placeholder="LinkedIn"
-                  />
+                  <p className="upload-help">
+                    Personal details are auto-populated from uploaded career history.
+                  </p>
                   <select
                     value={template}
                     onChange={(e) =>
