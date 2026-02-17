@@ -1,74 +1,51 @@
 import { createPdfBuffer } from "../test/helpers/fixtures.js";
 
 const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:5173";
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function jsonFetch(path: string, init?: RequestInit) {
   const response = await fetch(`${baseUrl}${path}`, init);
   const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(`Request failed ${path}: ${response.status} ${JSON.stringify(payload)}`);
-  }
+  if (!response.ok) throw new Error(`${path} failed: ${response.status} ${JSON.stringify(payload)}`);
   return payload;
-}
-
-async function uploadExperience(runId: string) {
-  const file = createPdfBuffer();
-  const form = new FormData();
-  form.append("file", new Blob([file], { type: "application/pdf" }), "sample.pdf");
-
-  return jsonFetch(`/api/runs/${runId}/upload`, { method: "POST", body: form });
-}
-
-async function pollUntilSucceeded(runId: string) {
-  for (let i = 0; i < 20; i += 1) {
-    const snapshot = await jsonFetch(`/api/runs/${runId}`);
-    if (snapshot.run?.status === "succeeded") return snapshot;
-    if (snapshot.run?.status === "failed") throw new Error("Run failed");
-    await wait(1000);
-  }
-  throw new Error("Run did not finish in time");
 }
 
 async function main() {
   const run = await jsonFetch("/api/runs", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      title: "Smoke run",
-      jdSourceType: "paste",
-      jdText: "Senior TypeScript engineer role focused on API reliability and orchestration.",
-      candidateName: "Smoke Tester",
-    }),
+    body: JSON.stringify({ title: "Smoke", candidateName: "Smoke", jdSourceType: "paste", jdText: "Need React TypeScript AWS leadership" }),
+  });
+  const runId = run.runId as string;
+
+  const form = new FormData();
+  form.append("file", new Blob([createPdfBuffer()], { type: "application/pdf" }), "sample.pdf");
+  await jsonFetch(`/api/runs/${runId}/upload`, { method: "POST", body: form });
+
+  for (let i = 1; i <= 4; i += 1) await jsonFetch(`/api/runs/${runId}/step?index=${i}`, { method: "POST" });
+
+  let snapshot = await jsonFetch(`/api/runs/${runId}`);
+  const artifactTypes = new Set(snapshot.artifacts.map((a: any) => a.type));
+  ["parsed_jd", "parsed_experience", "actionable_points", "cv_draft", "skill_scores"].forEach((t) => {
+    if (!artifactTypes.has(t)) throw new Error(`Missing artifact ${t}`);
   });
 
-  const runId = run.runId as string;
-  if (!runId) throw new Error("runId missing");
-
-  const upload = await uploadExperience(runId);
-  if (!upload.ok) throw new Error("Upload failed");
-
-  await jsonFetch(`/api/runs/${runId}/start`, { method: "POST" });
-  const snapshot = await pollUntilSucceeded(runId);
-
-  const types = new Set((snapshot.artifacts || []).map((artifact: { type: string }) => artifact.type));
-  for (const required of ["parsed_experience", "tagged_bullets", "resume_draft"]) {
-    if (!types.has(required)) throw new Error(`Missing artifact: ${required}`);
+  const firstWeak = snapshot.artifacts.find((a: any) => a.type === "skill_scores")?.data?.scores?.find((s: any) => s.status !== "covered");
+  if (firstWeak) {
+    await jsonFetch(`/api/runs/${runId}/skills/${encodeURIComponent(firstWeak.skillTag)}/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: `I used ${firstWeak.skillTag} in production.` }),
+    });
   }
 
-  const pdfResponse = await fetch(`${baseUrl}/api/runs/${runId}/export/pdf`, { method: "POST" });
-  if (!pdfResponse.ok) throw new Error("PDF export failed");
-  if (!pdfResponse.headers.get("content-type")?.includes("application/pdf")) {
-    throw new Error("PDF export content-type mismatch");
-  }
-
+  await wait(200);
+  snapshot = await jsonFetch(`/api/runs/${runId}`);
+  if (!snapshot.artifacts.find((a: any) => a.type === "cv_revisions")) throw new Error("cv_revisions missing");
   console.log(JSON.stringify({ ok: true, runId }, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
