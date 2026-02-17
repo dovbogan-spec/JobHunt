@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
-import { importJdSchema } from "../../shared/schemas/api";
-import { readJson, sendJson } from "../_utils";
+import { importJdSchema } from "../../shared/schemas/api.js";
+import { readJson, sendJson } from "../_utils.js";
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
   if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });

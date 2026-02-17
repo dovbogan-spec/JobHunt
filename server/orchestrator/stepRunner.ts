@@ -1,5 +1,6 @@
-import { getAgentForStep, maxSteps } from "../agents";
-import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo";
+import { getAgentForStep, maxSteps } from "../agents/index.js";
+import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
+import { agentResultSchema } from "../../shared/schemas/api.js";
 
 export async function executeStep(runId: string, stepIndex: number, force = false) {
   const agent = getAgentForStep(stepIndex);
@@ -23,7 +24,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
   });
 
-  const result = await agent.run({
+  const rawResult = await agent.run({
     runId,
     context: { run: snapshot.run, artifacts: snapshot.artifacts },
     inputs: {
@@ -32,6 +33,25 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       artifacts: snapshot.artifacts,
     },
   });
+
+  const parsedResult = agentResultSchema.safeParse(rawResult);
+  if (!parsedResult.success) {
+    const schemaError = parsedResult.error.issues
+      .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
+      .join("; ");
+    await saveStep({
+      runId,
+      stepIndex,
+      agentName: agent.name,
+      status: "failed",
+      inputJson: {},
+      outputJson: rawResult,
+      error: `Agent output schema mismatch: ${schemaError}`,
+    });
+    await updateRunStatus(runId, "failed");
+    return { ok: false, error: `Agent output schema mismatch: ${schemaError}` };
+  }
+  const result = parsedResult.data;
 
   if (!result.ok) {
     const errorText = result.errors.join("; ") || "Agent failed";
@@ -49,7 +69,10 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     return { ok: false };
   }
 
-  await upsertArtifacts(runId, result.artifactUpdates);
+  await upsertArtifacts(
+    runId,
+    result.artifactUpdates.map((artifact) => ({ type: artifact.type, data: artifact.data })),
+  );
   await saveStep({
     runId,
     stepIndex,

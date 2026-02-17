@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { executeStep } from "../../../server/orchestrator/stepRunner";
-import { runStepSchema } from "../../../shared/schemas/api";
-import { sendJson } from "../../_utils";
+import { executeStep } from "../../../server/orchestrator/stepRunner.js";
+import { runStepSchema } from "../../../shared/schemas/api.js";
+import { sendJson } from "../../_utils.js";
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string> },
