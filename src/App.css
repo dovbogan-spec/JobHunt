@@ -351,10 +351,10 @@ textarea {
 
 .resume-preview.modern {
   position: relative;
-  border: 1px solid #cae6d5;
-  border-top: 7px solid #2f855a;
-  border-radius: 2rem;
-  box-shadow: 0 20px 40px rgba(35, 110, 79, 0.16);
+  border: 1px solid #d9e2dd;
+  border-top: 4px solid #122622;
+  border-radius: 1.4rem;
+  box-shadow: 0 12px 24px rgba(8, 24, 18, 0.09);
   min-height: calc(100vh - 140px);
   max-height: calc(100vh - 140px);
   display: grid;
@@ -429,7 +429,7 @@ textarea {
 
 .section-picker-row {
   display: grid;
-  grid-template-columns: 125px 1fr;
+  grid-template-columns: 110px 1fr 42px 42px;
   gap: 0.45rem;
 }
 
@@ -718,4 +718,52 @@ textarea {
     position: static;
     height: auto;
   }
+}
+
+
+.editor-toolbar {
+  display: inline-flex;
+  gap: 0.3rem;
+  margin: 0 0 0.55rem;
+  padding: 0.35rem;
+  border: 1px solid #cee6d7;
+  border-radius: 0.55rem;
+  background: #f7fbf8;
+}
+
+.editor-toolbar button {
+  min-height: 30px;
+  min-width: 34px;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.editable-box {
+  min-height: 56px;
+  border: 1px solid #c9dbd0;
+  border-radius: 0.55rem;
+  padding: 0.55rem;
+  background: #fff;
+  line-height: 1.2;
+}
+
+.preview-content {
+  font-family: Inter, Calibri, Helvetica, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.2;
+  color: #172624;
+}
+
+.preview-content h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.preview-content h4 {
+  margin: 0.8rem 0 0.35rem;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
