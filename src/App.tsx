@@ -41,6 +41,7 @@ type ResumeData = {
   organization: string;
 };
 type ResumeSection = { id: SectionId; label: string; visible: boolean };
+type SubmissionStatus = "active" | "churned";
 type SubmissionHistory = {
   id: string;
   date: string;
@@ -51,6 +52,7 @@ type SubmissionHistory = {
   resume: ResumeData;
   coverLetter: string;
   jobDescription: string;
+  status: SubmissionStatus;
 };
 type RequirementCheck = {
   id: string;
@@ -180,6 +182,19 @@ function scoreClass(score: number) {
   return "score-bad";
 }
 
+function normalizeHistory(
+  value: unknown,
+): SubmissionHistory[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    const item = entry as SubmissionHistory;
+    return {
+      ...item,
+      status: item.status === "churned" ? "churned" : "active",
+    };
+  });
+}
+
 function App() {
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
@@ -190,9 +205,15 @@ function App() {
   const [coverLetter, setCoverLetter] = useState("");
   const [coverLetterNotes, setCoverLetterNotes] = useState("");
   const [template, setTemplate] = useState<TemplateName>("Modern");
-  const [history, setHistory] = useState<SubmissionHistory[]>(() =>
-    JSON.parse(localStorage.getItem("job-hunt-history") || "[]"),
-  );
+  const [history, setHistory] = useState<SubmissionHistory[]>(() => {
+    const raw = localStorage.getItem("job-hunt-history");
+    if (!raw) return [];
+    try {
+      return normalizeHistory(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  });
   const [companyFilter, setCompanyFilter] = useState("all");
   const [skillFilter, setSkillFilter] = useState("all");
   const [chatOpen, setChatOpen] = useState(false);
@@ -478,6 +499,7 @@ function App() {
         resume,
         coverLetter,
         jobDescription: normalizedJobDescription,
+        status: existingIndex >= 0 ? prev[existingIndex].status : "active",
       };
 
       if (existingIndex >= 0) {
@@ -488,6 +510,16 @@ function App() {
 
       return [nextEntry, ...prev].slice(0, 30);
     });
+  }
+
+  function setHistoryStatus(id: string, status: SubmissionStatus) {
+    setHistory((prev) =>
+      prev.map((entry) => (entry.id === id ? { ...entry, status } : entry)),
+    );
+  }
+
+  function deleteHistoryItem(id: string) {
+    setHistory((prev) => prev.filter((entry) => entry.id !== id));
   }
 
   async function runAgent1JobAnalyzer(jobDescription: string) {
@@ -1635,11 +1667,16 @@ function App() {
                     <th>Company</th>
                     <th>Role Link</th>
                     <th>Template</th>
+                    <th>Status</th>
+                    <th aria-label="Actions"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className={item.status === "churned" ? "history-row-churned" : ""}
+                    >
                       <td>{new Date(item.date).toLocaleString()}</td>
                       <td>{item.role}</td>
                       <td>{item.company}</td>
@@ -1653,6 +1690,33 @@ function App() {
                         )}
                       </td>
                       <td>{item.template}</td>
+                      <td>
+                        <select
+                          value={item.status}
+                          onChange={(e) =>
+                            setHistoryStatus(item.id, e.target.value as SubmissionStatus)
+                          }
+                          className={
+                            item.status === "churned"
+                              ? "history-status churned"
+                              : "history-status"
+                          }
+                        >
+                          <option value="active">Active</option>
+                          <option value="churned">Churned</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="history-delete"
+                          onClick={() => deleteHistoryItem(item.id)}
+                          aria-label={`Delete ${item.role || "submission"}`}
+                          title="Delete submission"
+                        >
+                          🗑️
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
