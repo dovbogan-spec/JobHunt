@@ -166,6 +166,7 @@ const defaultLlmSettings: LlmSettings = {
   azureApiVersion: "2024-10-21",
   customHeaders: "",
 };
+type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
   { id: "header", label: "Header", visible: true },
   { id: "experience", label: "Experience", visible: true },
@@ -255,6 +256,9 @@ function App() {
     }
   });
   const [saveMessage, setSaveMessage] = useState("");
+  const [connectivityStatus, setConnectivityStatus] =
+    useState<ConnectivityStatus>("idle");
+  const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
   const previewRef = useRef<HTMLElement | null>(null);
   const previewResume = editMode ? editorDraft : resume;
 
@@ -270,6 +274,10 @@ function App() {
     const timer = window.setTimeout(() => setSaveMessage(""), 3200);
     return () => window.clearTimeout(timer);
   }, [saveMessage]);
+  useEffect(() => {
+    setConnectivityStatus("idle");
+    setConnectivityErrorCode("");
+  }, [llmSettings]);
   useEffect(() => {
     const onFullscreenChange = () =>
       setPreviewFullscreen(
@@ -350,38 +358,94 @@ function App() {
 
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
-    setSaveMessage("LLM integration settings saved.");
+    setSaveMessage("Model API integration settings saved.");
+  }
+
+  function getCustomHeaders(settings: LlmSettings) {
+    const headers: Record<string, string> = {};
+    if (!settings.customHeaders.trim()) return headers;
+    settings.customHeaders.split("\n").forEach((line) => {
+      const [headerName, ...valueParts] = line.split(":");
+      if (!headerName || valueParts.length === 0) return;
+      headers[headerName.trim()] = valueParts.join(":").trim();
+    });
+    return headers;
+  }
+
+  function getModelApiConfig(settings: LlmSettings) {
+    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
+    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
+    const model =
+      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
+    const key = settings.apiKey.trim() || import.meta.env.VITE_LLM_API_KEY;
+    return { apiUrl, model, key };
+  }
+
+  async function testModelApiConnectivity() {
+    setConnectivityStatus("testing");
+    setConnectivityErrorCode("");
+
+    try {
+      const { apiUrl, model, key } = getModelApiConfig(llmSettings);
+      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...getCustomHeaders(llmSettings),
+      };
+      if (key) headers.Authorization = `Bearer ${key}`;
+      if (llmSettings.organizationId.trim()) {
+        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
+      }
+
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+        temperature: 0,
+      };
+      if (
+        llmSettings.provider === "azureOpenai" &&
+        llmSettings.azureApiVersion.trim()
+      ) {
+        requestBody.apiVersion = llmSettings.azureApiVersion.trim();
+      }
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        setConnectivityStatus("error");
+        setConnectivityErrorCode(`HTTP ${response.status}`);
+        return;
+      }
+
+      setConnectivityStatus("success");
+    } catch (error) {
+      setConnectivityStatus("error");
+      setConnectivityErrorCode(
+        error instanceof Error ? error.message : "PING_FAILED",
+      );
+    }
   }
 
   async function callModel(
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
-    const configured = llmSettings.enabled
-      ? getLlmConnectionInfo(llmSettings)
-      : null;
-    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
-    const model =
-      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    const key = llmSettings.enabled
-      ? llmSettings.apiKey.trim()
-      : import.meta.env.VITE_LLM_API_KEY;
+    const { apiUrl, model, key } = getModelApiConfig(llmSettings);
     if (!apiUrl) return null;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      ...getCustomHeaders(llmSettings),
     };
     if (key) headers.Authorization = `Bearer ${key}`;
     if (llmSettings.enabled && llmSettings.organizationId.trim())
       headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-
-    if (llmSettings.enabled && llmSettings.customHeaders.trim()) {
-      llmSettings.customHeaders.split("\n").forEach((line) => {
-        const [headerName, ...valueParts] = line.split(":");
-        if (!headerName || valueParts.length === 0) return;
-        headers[headerName.trim()] = valueParts.join(":").trim();
-      });
-    }
 
     const requestBody: Record<string, unknown> = {
       model,
@@ -930,7 +994,7 @@ function App() {
             className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
             onClick={() => setTab("llmIntegration")}
           >
-            🤖 LLM API
+            🤖 Model API
           </button>
           <button className="small-action" onClick={downloadResumePdf}>
             📥 Download PDF
@@ -1478,7 +1542,7 @@ function App() {
             <section className="llm-integration">
               <div className="llm-card">
                 <div className="llm-header">
-                  <h3>LLM Provider Settings</h3>
+                  <h3>Model API Provider Settings</h3>
                   <label className="toggle-row">
                     <input
                       type="checkbox"
@@ -1494,7 +1558,7 @@ function App() {
                   </label>
                 </div>
                 <p className="llm-subtitle">
-                  Configure API settings for your provider. These values are
+                  Configure model API settings for your provider. These values are
                   stored locally on this device.
                 </p>
                 <div className="llm-grid">
@@ -1602,9 +1666,23 @@ function App() {
                   <button className="primary" onClick={saveLlmSettings}>
                     Save settings
                   </button>
+                  <button
+                    className={`primary connectivity-btn connectivity-${connectivityStatus}`}
+                    onClick={testModelApiConnectivity}
+                    disabled={connectivityStatus === "testing"}
+                  >
+                    {connectivityStatus === "testing"
+                      ? "Testing ping…"
+                      : "Test model API ping"}
+                  </button>
                   {saveMessage && (
                     <p className="save-message" role="status">
                       {saveMessage}
+                    </p>
+                  )}
+                  {connectivityStatus === "error" && connectivityErrorCode && (
+                    <p className="connectivity-error" role="status">
+                      {connectivityErrorCode}
                     </p>
                   )}
                 </div>
