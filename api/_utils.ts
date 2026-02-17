@@ -9,6 +9,14 @@ export async function readJson(req: IncomingMessage) {
   return JSON.parse(raw);
 }
 
+export async function readBody(req: IncomingMessage) {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Uint8Array);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function sendJson(res: ServerResponse, status: number, data: unknown) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -16,5 +24,10 @@ export function sendJson(res: ServerResponse, status: number, data: unknown) {
 }
 
 export function methodNotAllowed(res: ServerResponse) {
-  sendJson(res, 405, { error: "Method not allowed" });
+  sendJson(res, 405, { ok: false, error: "Method not allowed" });
+}
+
+export function logServerError(route: string, error: unknown, extra?: Record<string, unknown>) {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  console.error(JSON.stringify({ level: "error", route, message, ...extra }));
 }

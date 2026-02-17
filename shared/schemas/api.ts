@@ -28,3 +28,15 @@ export const companyInsightsSchema = z.object({
   role: z.string().min(1),
   jdKeywords: z.array(z.string()).default([]),
 });
+
+export const agentResultSchema = z.object({
+  ok: z.boolean(),
+  artifactUpdates: z.array(
+    z.object({
+      type: z.string().min(1),
+      data: z.unknown(),
+    }),
+  ),
+  nextHints: z.array(z.string()),
+  errors: z.array(z.string()),
+});

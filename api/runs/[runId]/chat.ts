@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "http";
-import { basicRateLimit } from "../../../server/orchestrator/rateLimit";
-import { appendChat } from "../../../server/storage/runsRepo";
-import { chatSchema } from "../../../shared/schemas/api";
-import { readJson, sendJson } from "../../_utils";
+import { basicRateLimit } from "../../../server/orchestrator/rateLimit.js";
+import { appendChat } from "../../../server/storage/runsRepo.js";
+import { chatSchema } from "../../../shared/schemas/api.js";
+import { readJson, sendJson } from "../../_utils.js";
 
 export default async function handler(
   req: IncomingMessage & { method?: string; query?: Record<string, string>; socket?: { remoteAddress?: string } },

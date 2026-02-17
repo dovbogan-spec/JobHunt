@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getDbPool } from "./db";
+import { getDbPool } from "./db.js";
 
 export async function createRun(input: Record<string, unknown>) {
   const pool = getDbPool();
