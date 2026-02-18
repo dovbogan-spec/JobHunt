@@ -84,10 +84,6 @@ type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
   model: string;
-  endpoint: string;
-  organizationId: string;
-  azureApiVersion: string;
-  customHeaders: string;
 };
 type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
 type ExperienceFieldWidth = "full" | "half";
@@ -184,10 +180,6 @@ const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
   model: "gpt-4o-mini",
-  endpoint: "",
-  organizationId: "",
-  azureApiVersion: "2024-10-21",
-  customHeaders: "",
 };
 type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
@@ -360,30 +352,19 @@ function App() {
   }, [companyFilter, skillFilter, experienceItems.length]);
 
   function getLlmConnectionInfo(settings: LlmSettings) {
-    const providerDefaults: Record<
-      LlmProvider,
-      { endpoint: string; model: string }
-    > = {
-      openai: {
-        endpoint: "https://api.openai.com/v1/chat/completions",
-        model: "gpt-4o-mini",
-      },
-      anthropic: {
-        endpoint: "https://api.anthropic.com/v1/messages",
-        model: "claude-3-5-sonnet-latest",
-      },
-      azureOpenai: { endpoint: "", model: "gpt-4o-mini" },
-      gemini: {
-        endpoint:
-          "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        model: "gemini-1.5-pro",
-      },
-      custom: { endpoint: "", model: "" },
+    const providerDefaults: Record<LlmProvider, { model: string }> = {
+      openai: { model: "gpt-4o-mini" },
+      anthropic: { model: "claude-3-5-sonnet-latest" },
+      azureOpenai: { model: "gpt-4o-mini" },
+      gemini: { model: "gemini-1.5-pro" },
+      custom: { model: "" },
     };
-    const providerDefault = providerDefaults[settings.provider];
-    const endpoint = settings.endpoint.trim() || providerDefault.endpoint;
-    const model = settings.model.trim() || providerDefault.model;
-    return { endpoint, model };
+    const provider = settings.enabled ? settings.provider : "openai";
+    const model =
+      settings.enabled && settings.model.trim()
+        ? settings.model.trim()
+        : providerDefaults[provider].model;
+    return { provider, model };
   }
 
   function saveLlmSettings() {
@@ -415,6 +396,9 @@ function App() {
     setConnectivityErrorCode("");
 
     try {
+      const { provider, model } = getLlmConnectionInfo(llmSettings);
+      const requestBody = {
+        provider,
       const { apiUrl, model } = getModelApiConfig(llmSettings);
       if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
 
@@ -429,19 +413,11 @@ function App() {
       const requestBody: Record<string, unknown> = {
         model,
         messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        temperature: 0,
       };
-      if (
-        llmSettings.provider === "azureOpenai" &&
-        llmSettings.azureApiVersion.trim()
-      ) {
-        requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-      }
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch("/api/llm/chat", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 
@@ -464,6 +440,7 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
+    const { provider, model } = getLlmConnectionInfo(llmSettings);
     const { apiUrl, model } = getModelApiConfig(llmSettings);
     if (!apiUrl) return null;
 
@@ -474,32 +451,24 @@ function App() {
     if (llmSettings.enabled && llmSettings.organizationId.trim())
       headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
 
-    const requestBody: Record<string, unknown> = {
+    const requestBody = {
+      provider,
       model,
       messages: [
         { role: "system", content: AGENT_PROMPTS[agent] },
         { role: "user", content: JSON.stringify(payload) },
       ],
-      temperature: 0.2,
     };
 
-    if (
-      llmSettings.enabled &&
-      llmSettings.provider === "azureOpenai" &&
-      llmSettings.azureApiVersion.trim()
-    ) {
-      requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-    }
-
-    const res = await fetch(apiUrl, {
+    const res = await fetch("/api/llm/chat", {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
+    const content = data.content || "{}";
     try {
       return JSON.parse(content);
     } catch {
@@ -1927,6 +1896,8 @@ function App() {
                 <h3>Provider hints</h3>
                 <ul>
                   <li>
+                    Provider credentials are loaded from secure server-side
+                    environment variables.
                     <strong>ChatGPT / OpenAI:</strong> keep endpoint empty to
                     use the default OpenAI chat completions URL.
                   </li>
@@ -1944,8 +1915,8 @@ function App() {
                     and configure credentials on the server (not in-browser).
                   </li>
                   <li>
-                    <strong>Custom endpoint:</strong> enter endpoint/model and
-                    optional custom headers.
+                    Choose a provider and optional model override here, then use
+                    “Test model API ping” to verify connectivity.
                   </li>
                 </ul>
               </div>
