@@ -199,9 +199,48 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 1.45fr;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.9rem;
   align-items: stretch;
+}
+
+.workspace.workspace-edit-mode {
+  grid-template-columns: 1fr 0.65fr 1.45fr;
+.resume-editor-pane {
+  background: #ffffff;
+  border-radius: 0.9rem;
+  border: 1px solid #d2e9da;
+  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  padding: 1rem;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.resume-editor-scroll {
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.resume-editor-header h3 {
+  margin: 0;
+}
+
+.resume-editor-header p {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: #3b6250;
+}
+
+.resume-editor-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.editor-empty-state {
+  margin: 0;
+  color: #3b6250;
 }
 
 .skills-panel {
@@ -471,6 +510,80 @@ textarea {
   background: #f6fcf8;
 }
 
+.section-manager-panel {
+  background: #ffffff;
+  border-radius: 0.9rem;
+  border: 1px solid #d2e9da;
+  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  padding: 0.9rem;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.section-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.section-manager-header h4 {
+  margin: 0;
+}
+
+.section-manager-header span {
+  font-size: 0.8rem;
+  color: #486b5b;
+  font-weight: 600;
+}
+
+.section-manager-list {
+  overflow: auto;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.section-manager-row {
+  border: 1px solid #cde2d6;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  background: #f8fcf9;
+}
+
+.section-manager-row.active {
+  border-color: #2f855a;
+  box-shadow: 0 0 0 1px #2f855a;
+  background: #eef8f2;
+}
+
+.section-manager-row.is-hidden {
+  opacity: 0.78;
+}
+
+.section-select-btn {
+  text-align: left;
+  font-weight: 700;
+}
+
+.section-manager-row input {
+  grid-column: 1 / -1;
+}
+
+.section-order-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.section-order-buttons button {
+  min-width: 40px;
+}
+
 .section-picker-header {
   display: flex;
   align-items: center;
@@ -492,7 +605,7 @@ textarea {
   overflow: auto;
   border: 1px solid #cee6d7;
   border-radius: 1.3rem;
-  padding: 4.6rem 1.1rem 5.2rem;
+  padding: 1.1rem;
   position: relative;
   display: grid;
   align-items: start;
@@ -548,11 +661,13 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 1rem;
-  z-index: 2;
+}
+
+.editor-actions-footer {
+  justify-content: center;
+  border-top: 1px solid #d8ece0;
+  padding-top: 0.7rem;
+  margin-top: 0.7rem;
 }
 
 .preview-bottom-actions button {
@@ -809,6 +924,7 @@ textarea {
 @media (max-width: 1100px) {
   .app-layout,
   .workspace,
+  .workspace.workspace-edit-mode,
   .intake,
   .cover-letter,
   .llm-integration {
