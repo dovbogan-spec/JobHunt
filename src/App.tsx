@@ -251,11 +251,12 @@ function App() {
   const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
   const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
-  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
-  const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [sections, setSections] = useState<ResumeSection[]>(initialSections);
+  const [activeSectionId, setActiveSectionId] = useState<SectionId>(
+    initialSections.find((section) => section.visible)?.id ?? initialSections[0].id,
+  );
   const [requirementChecks, setRequirementChecks] = useState<
     RequirementCheck[]
   >([]);
@@ -899,6 +900,9 @@ function App() {
         ],
       })),
     );
+    setActiveSectionId(
+      sections.find((section) => section.visible)?.id ?? sections[0]?.id ?? "header",
+    );
     setEditMode(true);
   }
   function saveEditingResume() {
@@ -933,6 +937,16 @@ function App() {
     setDraggingField(null);
     setEditMode(false);
   }
+
+  useEffect(() => {
+    if (!editMode) return;
+    const activeSection = sections.find((section) => section.id === activeSectionId);
+    if (activeSection?.visible) return;
+    const firstVisibleSection = sections.find((section) => section.visible);
+    if (firstVisibleSection) {
+      setActiveSectionId(firstVisibleSection.id);
+    }
+  }, [activeSectionId, editMode, sections]);
   function updateExperienceField(itemId: string, fieldId: string, value: string) {
     setExperienceEditor((prev) =>
       prev.map((item) =>
@@ -1227,6 +1241,7 @@ function App() {
                 </div>
               </section>
 
+              <section className={`workspace ${editMode ? "workspace-edit-mode" : ""}`}>
               <section className="workspace">
                 <main
                   className={`resume-preview ${template.toLowerCase()} ${previewFullscreen ? "is-fullscreen" : ""}`}
@@ -1704,6 +1719,338 @@ function App() {
                   </section>
                 </aside>
 
+                {editMode && (
+                  <aside className="section-manager-panel">
+                    <div className="section-manager-header">
+                      <h4>Sections</h4>
+                      <span>{sections.filter((section) => section.visible).length} visible</span>
+                    </div>
+                    <div className="section-manager-list">
+                      {sections.map((section) => (
+                        <div
+                          key={section.id}
+                          className={`section-manager-row ${activeSectionId === section.id ? "active" : ""} ${!section.visible ? "is-hidden" : ""}`}
+                        >
+                          <button
+                            className="section-select-btn"
+                            onClick={() => setActiveSectionId(section.id)}
+                          >
+                            {section.label || "Untitled section"}
+                          </button>
+                          <button onClick={() => toggleSection(section.id)}>
+                            {section.visible ? "Hide" : "Show"}
+                          </button>
+                          <input
+                            value={section.label}
+                            onChange={(e) => updateSectionLabel(section.id, e.target.value)}
+                            placeholder="Rename section"
+                          />
+                          <div className="section-order-buttons">
+                            <button onClick={() => moveSection(section.id, "up")}>↑</button>
+                            <button onClick={() => moveSection(section.id, "down")}>↓</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                )}
+
+                <main
+                  className={`resume-preview ${template.toLowerCase()} ${previewFullscreen ? "is-fullscreen" : ""}`}
+                  ref={previewRef}
+                >
+                  <div className="preview-toolbar">
+                    <button
+                      className="round-icon-button"
+                      onClick={() =>
+                        setZoom((prev) => Math.max(0.7, prev - 0.1))
+                      }
+                    >
+                      −
+                    </button>
+                    <span className="toolbar-zoom-value">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      className="round-icon-button"
+                      onClick={() =>
+                        setZoom((prev) => Math.min(1.5, prev + 0.1))
+                      }
+                    >
+                      +
+                    </button>
+                    <button
+                      className="round-icon-button toolbar-fullscreen"
+                      onClick={togglePreviewFullscreen}
+                    >
+                      {previewFullscreen ? "⤢" : "⛶"}
+                    </button>
+                  </div>
+
+                  <div
+                    className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
+                  >
+                    <div
+                      className="preview-content"
+                      style={{ transform: `scale(${zoom})` }}
+                    >
+                      {sections
+                        .filter((section) => section.visible)
+                        .map((section) => {
+                          if (section.id === "header") {
+                            return (
+                              <div key={section.id}>
+                                {editMode && activeSectionId === section.id ? (
+                                  <div className="manual-editor-grid">
+                                    <input
+                                      value={editorDraft.fullName}
+                                      placeholder="Full name"
+                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, fullName: e.target.value }))}
+                                    />
+                                    <input
+                                      value={editorDraft.primaryTitle}
+                                      placeholder="Primary title"
+                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, primaryTitle: e.target.value }))}
+                                    />
+                                  </div>
+                                ) : (
+                                  <>
+                                    <h2>{previewResume.fullName || "Your Name"}</h2>
+                                    <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
+                                    <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (section.id === "profile") {
+                            return (
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
+                                {editMode && activeSectionId === section.id ? (
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.profile}
+                                    placeholder="Write a concise 2-4 line profile."
+                                    onChange={(e) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        profile: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  <p className="preview-text">{previewResume.profile}</p>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (section.id === "experience") {
+                            return (
+                              <div key={section.id} className={editMode ? "section-edit-shell" : ""}>
+                                <h4>{section.label}</h4>
+                                {editMode && activeSectionId === section.id
+                                  ? experienceEditor.map((item) => (
+                                      <div className="experience-main-box" key={item.id}>
+                                        <div className="experience-box-toolbar">
+                                          <span>Editing toolbar</span>
+                                          <button
+                                            className="small-action"
+                                            onClick={() =>
+                                              setOpenFieldMenuFor((prev) =>
+                                                prev === item.id ? null : item.id,
+                                              )
+                                            }
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                        {openFieldMenuFor === item.id && (
+                                          <div className="field-add-menu">
+                                            {(["text", "date", "title", "subTitle"] as ExperienceFieldType[]).map((type) => (
+                                              <button
+                                                key={type}
+                                                onClick={() => addExperienceField(item.id, type)}
+                                              >
+                                                {type === "subTitle" ? "sub title" : type}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <div className="experience-field-grid">
+                                          {item.fields.map((field) => (
+                                            <div
+                                              key={field.id}
+                                              className={`experience-sub-box ${field.width === "half" ? "half" : "full"}`}
+                                              draggable
+                                              onDragStart={() =>
+                                                setDraggingField({
+                                                  itemId: item.id,
+                                                  fieldId: field.id,
+                                                })
+                                              }
+                                              onDragEnd={() => setDraggingField(null)}
+                                            >
+                                              <div className="sub-box-drop-zones">
+                                                {(["top", "bottom", "left", "right"] as const).map((zone) => (
+                                                  <button
+                                                    key={zone}
+                                                    className={`drop-zone ${zone}`}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => {
+                                                      e.preventDefault();
+                                                      moveExperienceField(item.id, field.id, zone);
+                                                    }}
+                                                    aria-label={`Drop ${zone}`}
+                                                  />
+                                                ))}
+                                              </div>
+                                              <label className="sub-box-label">{field.type === "subTitle" ? "Sub title" : field.type}</label>
+                                              {field.type === "date" ? (
+                                                <input
+                                                  type="date"
+                                                  className="manual-editor-box"
+                                                  value={field.value}
+                                                  onChange={(e) =>
+                                                    updateExperienceField(item.id, field.id, e.target.value)
+                                                  }
+                                                />
+                                              ) : (
+                                                <textarea
+                                                  className="manual-editor-box"
+                                                  value={field.value}
+                                                  rows={field.type === "text" ? 4 : 2}
+                                                  placeholder={`Add ${field.type === "subTitle" ? "sub title" : field.type}`}
+                                                  onChange={(e) =>
+                                                    updateExperienceField(item.id, field.id, e.target.value)
+                                                  }
+                                                />
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ))
+                                  : previewResume.selectedExperience.map((item) => (
+                                      <div className="bullet-row" key={item.id}>
+                                        <p className="preview-bullet">• {toPlainText(item.text)}</p>
+                                      </div>
+                                    ))}
+                                {editMode && (
+                                  <button
+                                    className="small-action"
+                                    onClick={addExperienceMainBox}
+                                  >
+                                    + Add main box
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (section.id === "education") {
+                            return (
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
+                                {editMode && activeSectionId === section.id ? (
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.education.join("\n")}
+                                    placeholder="One education entry per line"
+                                    onChange={(e) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        education: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)
+                                )}
+                              </div>
+                            );
+                          }
+                          if (section.id === "skills") {
+                            return (
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
+                                {editMode && activeSectionId === section.id ? (
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.keySkills.join("\n")}
+                                    placeholder="One skill per line"
+                                    onChange={(e) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        keySkills: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (section.id === "interests") {
+                            return (
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
+                                {editMode && activeSectionId === section.id ? (
+                                  <textarea
+                                    className="manual-editor-box"
+                                    value={editorDraft.interests.join("\n")}
+                                    placeholder="One interest per line"
+                                    onChange={(e) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        interests: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
+                                      }))
+                                    }
+                                  />
+                                ) : (
+                                  <p className="preview-text">{previewResume.interests.join(" · ")}</p>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={section.id}>
+                              <h4>{section.label}</h4>
+                              {editMode && activeSectionId === section.id ? (
+                                <textarea
+                                  className="manual-editor-box"
+                                  value={editorDraft.languages.join("\n")}
+                                  placeholder="One language per line"
+                                  onChange={(e) =>
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      languages: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                <p className="preview-text">{previewResume.languages.join(" · ")}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  <div className="preview-bottom-actions">
+                    {editMode ? (
+                      <>
+                        <button className="primary" onClick={saveEditingResume}>Save edits</button>
+                        <button onClick={cancelEditingResume}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={startEditingResume}>Edit</button>
+                    )}
+                    <button onClick={() => setPreviewPdfMode((prev) => !prev)}>
+                      Preview
+                    </button>
+                  </div>
+                </main>
               </section>
 
               <section className="check-resume-row">
