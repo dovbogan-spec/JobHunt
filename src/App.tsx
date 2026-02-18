@@ -243,11 +243,12 @@ function App() {
   const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
   const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
-  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
-  const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [sections, setSections] = useState<ResumeSection[]>(initialSections);
+  const [activeSectionId, setActiveSectionId] = useState<SectionId>(
+    initialSections.find((section) => section.visible)?.id ?? initialSections[0].id,
+  );
   const [requirementChecks, setRequirementChecks] = useState<
     RequirementCheck[]
   >([]);
@@ -969,6 +970,9 @@ function App() {
         ],
       })),
     );
+    setActiveSectionId(
+      sections.find((section) => section.visible)?.id ?? sections[0]?.id ?? "header",
+    );
     setEditMode(true);
   }
   function saveEditingResume() {
@@ -1003,6 +1007,16 @@ function App() {
     setDraggingField(null);
     setEditMode(false);
   }
+
+  useEffect(() => {
+    if (!editMode) return;
+    const activeSection = sections.find((section) => section.id === activeSectionId);
+    if (activeSection?.visible) return;
+    const firstVisibleSection = sections.find((section) => section.visible);
+    if (firstVisibleSection) {
+      setActiveSectionId(firstVisibleSection.id);
+    }
+  }, [activeSectionId, editMode, sections]);
   function updateExperienceField(itemId: string, fieldId: string, value: string) {
     setExperienceEditor((prev) =>
       prev.map((item) =>
@@ -1297,7 +1311,7 @@ function App() {
                 </div>
               </section>
 
-              <section className="workspace">
+              <section className={`workspace ${editMode ? "workspace-edit-mode" : ""}`}>
                 <aside className="skills-panel">
                   <section className="panel-window">
                     <div className="panel-header">
@@ -1417,6 +1431,42 @@ function App() {
                   </section>
                 </aside>
 
+                {editMode && (
+                  <aside className="section-manager-panel">
+                    <div className="section-manager-header">
+                      <h4>Sections</h4>
+                      <span>{sections.filter((section) => section.visible).length} visible</span>
+                    </div>
+                    <div className="section-manager-list">
+                      {sections.map((section) => (
+                        <div
+                          key={section.id}
+                          className={`section-manager-row ${activeSectionId === section.id ? "active" : ""} ${!section.visible ? "is-hidden" : ""}`}
+                        >
+                          <button
+                            className="section-select-btn"
+                            onClick={() => setActiveSectionId(section.id)}
+                          >
+                            {section.label || "Untitled section"}
+                          </button>
+                          <button onClick={() => toggleSection(section.id)}>
+                            {section.visible ? "Hide" : "Show"}
+                          </button>
+                          <input
+                            value={section.label}
+                            onChange={(e) => updateSectionLabel(section.id, e.target.value)}
+                            placeholder="Rename section"
+                          />
+                          <div className="section-order-buttons">
+                            <button onClick={() => moveSection(section.id, "up")}>↑</button>
+                            <button onClick={() => moveSection(section.id, "down")}>↓</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                )}
+
                 <main
                   className={`resume-preview ${template.toLowerCase()} ${previewFullscreen ? "is-fullscreen" : ""}`}
                   ref={previewRef}
@@ -1449,39 +1499,6 @@ function App() {
                     </button>
                   </div>
 
-                  {sectionPickerOpen && (
-                    <div className="section-picker">
-                      <div className="section-picker-header top-section-row">
-                        <strong>Section controls</strong>
-                        <button
-                          onClick={() =>
-                            setSectionListCollapsed((prev) => !prev)
-                          }
-                        >
-                          {sectionListCollapsed
-                            ? "⬇️ Expand List"
-                            : "⬆️ Collapse List"}
-                        </button>
-                      </div>
-                      {!sectionListCollapsed &&
-                        sections.map((section) => (
-                          <div key={section.id} className="section-picker-row">
-                            <button onClick={() => toggleSection(section.id)}>
-                              {section.visible ? "👁️ Hide" : "👁️ Show"}
-                            </button>
-                            <input
-                              value={section.label}
-                              onChange={(e) =>
-                                updateSectionLabel(section.id, e.target.value)
-                              }
-                            />
-                            <button onClick={() => moveSection(section.id, "up")}>↑</button>
-                            <button onClick={() => moveSection(section.id, "down")}>↓</button>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-
                   <div
                     className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
                   >
@@ -1495,7 +1512,7 @@ function App() {
                           if (section.id === "header") {
                             return (
                               <div key={section.id}>
-                                {editMode ? (
+                                {editMode && activeSectionId === section.id ? (
                                   <div className="manual-editor-grid">
                                     <input
                                       value={editorDraft.fullName}
@@ -1522,7 +1539,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
-                                {editMode ? (
+                                {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
                                     value={editorDraft.profile}
@@ -1544,7 +1561,7 @@ function App() {
                             return (
                               <div key={section.id} className={editMode ? "section-edit-shell" : ""}>
                                 <h4>{section.label}</h4>
-                                {editMode
+                                {editMode && activeSectionId === section.id
                                   ? experienceEditor.map((item) => (
                                       <div className="experience-main-box" key={item.id}>
                                         <div className="experience-box-toolbar">
@@ -1646,7 +1663,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
-                                {editMode ? (
+                                {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
                                     value={editorDraft.education.join("\n")}
@@ -1668,7 +1685,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
-                                {editMode ? (
+                                {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
                                     value={editorDraft.keySkills.join("\n")}
@@ -1690,7 +1707,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
-                                {editMode ? (
+                                {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
                                     value={editorDraft.interests.join("\n")}
@@ -1711,7 +1728,7 @@ function App() {
                           return (
                             <div key={section.id}>
                               <h4>{section.label}</h4>
-                              {editMode ? (
+                              {editMode && activeSectionId === section.id ? (
                                 <textarea
                                   className="manual-editor-box"
                                   value={editorDraft.languages.join("\n")}
@@ -1741,11 +1758,6 @@ function App() {
                     ) : (
                       <button onClick={startEditingResume}>Edit</button>
                     )}
-                    <button
-                      onClick={() => setSectionPickerOpen((prev) => !prev)}
-                    >
-                      Sections
-                    </button>
                     <button onClick={() => setPreviewPdfMode((prev) => !prev)}>
                       Preview
                     </button>
