@@ -596,6 +596,87 @@ textarea {
   gap: 0.45rem;
 }
 
+.section-picker-row.active {
+  outline: 2px solid #89bda0;
+  border-radius: 0.6rem;
+}
+
+.focused-editor-card {
+  border: 1px solid #cfe3d7;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(18, 53, 36, 0.09);
+  margin-bottom: 0.8rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+.focused-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.focused-editor-header h4,
+.focused-editor-kicker {
+  margin: 0;
+}
+
+.focused-editor-kicker {
+  font-size: 0.75rem;
+  color: #507764;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.focused-editor-actions {
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.editor-toolbar-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  border: 1px solid #d8e8df;
+  border-radius: 0.75rem;
+  padding: 0.35rem;
+  background: #f6fbf8;
+}
+
+.editor-toolbar-strip button {
+  min-height: 34px;
+  padding: 0.3rem 0.65rem;
+}
+
+.rich-editor-surface {
+  border: 1px solid #cddfd3;
+  border-radius: 0.8rem;
+  min-height: 150px;
+  padding: 0.7rem;
+  background: #fff;
+}
+
+.structured-editor-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.structured-editor-row {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.focused-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid #dfece4;
+}
+
 .top-section-row {
   padding-bottom: 0.4rem;
   border-bottom: 1px solid #cee6d7;

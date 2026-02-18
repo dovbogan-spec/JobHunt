@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
-import { type AgentPromptId } from "./agentPrompts";
+import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -255,6 +255,7 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
+  const [activeSectionId, setActiveSectionId] = useState<SectionId>("profile");
   const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
   const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
@@ -302,7 +303,9 @@ function App() {
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
   const [byokEnabled, setByokEnabled] = useState(false);
   const previewRef = useRef<HTMLElement | null>(null);
+  const richTextEditorRef = useRef<HTMLDivElement | null>(null);
   const previewResume = editMode ? editorDraft : resume;
+  const activeSection = sections.find((section) => section.id === activeSectionId);
 
   useEffect(
     () => localStorage.setItem("job-hunt-history", JSON.stringify(history)),
@@ -347,6 +350,12 @@ function App() {
       setTab("resume");
     }
   }, [byokEnabled, tab]);
+  useEffect(() => {
+    const fallback = sections.find((section) => section.visible)?.id;
+    if (!sections.some((section) => section.id === activeSectionId && section.visible) && fallback) {
+      setActiveSectionId(fallback);
+    }
+  }, [activeSectionId, sections]);
 
   const companies = useMemo(
     () => [
@@ -389,6 +398,25 @@ function App() {
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
+  }
+
+  function getCustomHeaders(settings: LlmSettings) {
+    const headers: Record<string, string> = {};
+    if (!settings.customHeaders.trim()) return headers;
+    settings.customHeaders.split("\n").forEach((line) => {
+      const [headerName, ...valueParts] = line.split(":");
+      if (!headerName || valueParts.length === 0) return;
+      headers[headerName.trim()] = valueParts.join(":").trim();
+    });
+    return headers;
+  }
+
+  function getModelApiConfig(settings: LlmSettings) {
+    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
+    const apiUrl = settings.endpoint.trim() || import.meta.env.VITE_LLM_API_URL;
+    const model =
+      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
+    return { apiUrl, model };
     setSaveMessage("LLM settings saved.");
   }
 
@@ -397,6 +425,28 @@ function App() {
     setConnectivityErrorCode("");
 
     try {
+      const { provider } = getLlmConnectionInfo(llmSettings);
+      const { apiUrl, model } = getModelApiConfig(llmSettings);
+      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...getCustomHeaders(llmSettings),
+      };
+      if (llmSettings.organizationId.trim()) {
+        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
+      }
+
+      const requestBody: Record<string, unknown> = {
+        provider,
+        model,
+        messages: [{ role: "user", content: "ping" }],
+      };
+
+      const response = await fetch("/api/llm/chat", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
       const response = await fetch("/api/llm/ping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -425,6 +475,30 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
+    const { provider } = getLlmConnectionInfo(llmSettings);
+    const { apiUrl, model } = getModelApiConfig(llmSettings);
+    if (!apiUrl) return null;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...getCustomHeaders(llmSettings),
+    };
+    if (llmSettings.enabled && llmSettings.organizationId.trim())
+      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
+
+    const requestBody = {
+      provider,
+      model,
+      messages: [
+        { role: "system", content: AGENT_PROMPTS[agent] },
+        { role: "user", content: JSON.stringify(payload) },
+      ],
+    };
+
+    const res = await fetch("/api/llm/chat", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
     const res = await fetch("/api/llm/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -892,6 +966,7 @@ function App() {
   }
   function startEditingResume() {
     setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
+    setActiveSectionId(sections.find((section) => section.visible)?.id ?? "profile");
     setExperienceEditor(
       resume.selectedExperience.map((item) => ({
         id: item.id,
@@ -917,37 +992,18 @@ function App() {
     setEditMode(true);
   }
   function saveEditingResume() {
-    const selectedExperience = experienceEditor
-      .map((item) => {
-        const titleField = item.fields.find((field) => field.type === "title" || field.type === "subTitle");
-        const text = item.fields
-          .map((field) => field.value.trim())
-          .filter(Boolean)
-          .join("\n");
-        return {
-          id: item.id,
-          text,
-          company: titleField?.value.trim() || editorDraft.organization || "",
-          skillTags: [],
-          selected: true,
-        } satisfies ExperienceItem;
-      })
-      .filter((item) => item.text);
-    const nextResume = { ...editorDraft, selectedExperience };
-    setResume(nextResume);
-    setEditorDraft(nextResume);
+    setResume(editorDraft);
     setEditMode(false);
-    setOpenFieldMenuFor(null);
-    setDraggingField(null);
     setSaveMessage("Resume edits saved.");
   }
   function cancelEditingResume() {
-    setEditorDraft(resume);
-    setExperienceEditor([]);
-    setOpenFieldMenuFor(null);
-    setDraggingField(null);
+    setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
     setEditMode(false);
   }
+  function updateActiveSectionVisibility(visible: boolean) {
+    setSections((prev) =>
+      prev.map((section) =>
+        section.id === activeSectionId ? { ...section, visible } : section,
 
   useEffect(() => {
     if (!editMode) return;
@@ -972,27 +1028,47 @@ function App() {
       ),
     );
   }
-  function addExperienceField(itemId: string, type: ExperienceFieldType) {
-    setExperienceEditor((prev) =>
-      prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              fields: [
-                ...item.fields,
-                {
-                  id: uuidv4(),
-                  type,
-                  value: "",
-                  width: type === "date" ? "half" : "full",
-                },
-              ],
-            }
-          : item,
-      ),
-    );
-    setOpenFieldMenuFor(null);
+  function clearActiveSectionContent() {
+    setEditorDraft((prev) => {
+      switch (activeSectionId) {
+        case "header":
+          return {
+            ...prev,
+            fullName: "",
+            email: "",
+            phone: "",
+            linkedin: "",
+            portfolio: "",
+            primaryTitle: "",
+            specializations: ["", ""],
+          };
+        case "profile":
+          return { ...prev, profile: "" };
+        case "experience":
+          return { ...prev, selectedExperience: [] };
+        case "education":
+          return { ...prev, education: [] };
+        case "skills":
+          return { ...prev, keySkills: [] };
+        case "interests":
+          return { ...prev, interests: [] };
+        case "languages":
+          return { ...prev, languages: [] };
+        default:
+          return prev;
+      }
+    });
   }
+  function applyRichCommand(command: "bold" | "italic" | "underline" | "insertUnorderedList" | "createLink" | "justifyLeft" | "justifyCenter" | "justifyRight") {
+    if (!richTextEditorRef.current) return;
+    richTextEditorRef.current.focus();
+    if (command === "createLink") {
+      const url = window.prompt("Enter link URL", "https://");
+      if (!url) return;
+      document.execCommand("createLink", false, url);
+      return;
+    }
+    document.execCommand(command, false);
   function moveExperienceField(itemId: string, targetFieldId: string, position: DropZonePosition) {
     if (!draggingField || draggingField.itemId !== itemId || draggingField.fieldId === targetFieldId) return;
     setExperienceEditor((prev) =>
@@ -1048,17 +1124,20 @@ function App() {
       }),
     );
   }
-  function addExperienceMainBox() {
-    setExperienceEditor((prev) => [
+  function updateListField<K extends "education" | "keySkills" | "interests" | "languages">(
+    key: K,
+    index: number,
+    value: string,
+  ) {
+    setEditorDraft((prev) => ({
       ...prev,
-      {
-        id: uuidv4(),
-        fields: [
-          { id: uuidv4(), type: "title", value: "", width: "full" },
-          { id: uuidv4(), type: "text", value: "", width: "full" },
-        ],
-      },
-    ]);
+      [key]: prev[key].map((item, itemIndex) =>
+        itemIndex === index ? value : item,
+      ).filter((item) => item.trim().length > 0 || item === value),
+    }));
+  }
+  function appendListField(key: "education" | "keySkills" | "interests" | "languages") {
+    setEditorDraft((prev) => ({ ...prev, [key]: [...prev[key], ""] }));
   }
   async function togglePreviewFullscreen() {
     if (!previewRef.current) return;
@@ -1827,6 +1906,177 @@ function App() {
                     </button>
                   </div>
 
+                  {sectionPickerOpen && (
+                    <div className="section-picker">
+                      <div className="section-picker-header top-section-row">
+                        <strong>Section controls</strong>
+                        <button
+                          onClick={() =>
+                            setSectionListCollapsed((prev) => !prev)
+                          }
+                        >
+                          {sectionListCollapsed
+                            ? "⬇️ Expand List"
+                            : "⬆️ Collapse List"}
+                        </button>
+                      </div>
+                      {!sectionListCollapsed &&
+                        sections.map((section) => (
+                          <div
+                            key={section.id}
+                            className={`section-picker-row ${section.id === activeSectionId ? "active" : ""}`}
+                          >
+                            <button onClick={() => toggleSection(section.id)}>
+                              {section.visible ? "👁️ Hide" : "👁️ Show"}
+                            </button>
+                            <input
+                              value={section.label}
+                              onFocus={() => setActiveSectionId(section.id)}
+                              onChange={(e) =>
+                                updateSectionLabel(section.id, e.target.value)
+                              }
+                            />
+                            <button onClick={() => moveSection(section.id, "up")}>↑</button>
+                            <button onClick={() => moveSection(section.id, "down")}>↓</button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {editMode && activeSection && (
+                    <section className="focused-editor-card">
+                      <header className="focused-editor-header">
+                        <div>
+                          <p className="focused-editor-kicker">Focused editor</p>
+                          <h4>{activeSection.label}</h4>
+                        </div>
+                        <div className="focused-editor-actions">
+                          <button onClick={() => updateActiveSectionVisibility(false)}>Hide</button>
+                          <button onClick={clearActiveSectionContent}>Remove content</button>
+                        </div>
+                      </header>
+
+                      {(activeSectionId === "profile" || activeSectionId === "header") && (
+                        <>
+                          <div className="editor-toolbar-strip">
+                            <button onClick={() => applyRichCommand("bold")}><strong>B</strong></button>
+                            <button onClick={() => applyRichCommand("italic")}><em>I</em></button>
+                            <button onClick={() => applyRichCommand("underline")}><u>U</u></button>
+                            <button onClick={() => applyRichCommand("insertUnorderedList")}>• List</button>
+                            <button onClick={() => applyRichCommand("createLink")}>🔗</button>
+                            <button onClick={() => applyRichCommand("justifyLeft")}>⟸</button>
+                            <button onClick={() => applyRichCommand("justifyCenter")}>≡</button>
+                            <button onClick={() => applyRichCommand("justifyRight")}>⟹</button>
+                          </div>
+                          {activeSectionId === "header" ? (
+                            <div className="manual-editor-grid">
+                              <input value={editorDraft.fullName} placeholder="Full name" onChange={(e) => setEditorDraft((prev) => ({ ...prev, fullName: e.target.value }))} />
+                              <input value={editorDraft.primaryTitle} placeholder="Primary title" onChange={(e) => setEditorDraft((prev) => ({ ...prev, primaryTitle: e.target.value }))} />
+                              <input value={editorDraft.email} placeholder="Email" onChange={(e) => setEditorDraft((prev) => ({ ...prev, email: e.target.value }))} />
+                              <input value={editorDraft.phone} placeholder="Phone" onChange={(e) => setEditorDraft((prev) => ({ ...prev, phone: e.target.value }))} />
+                            </div>
+                          ) : (
+                            <div
+                              ref={richTextEditorRef}
+                              className="rich-editor-surface"
+                              contentEditable
+                              suppressContentEditableWarning
+                              onInput={(e) =>
+                                setEditorDraft((prev) => ({
+                                  ...prev,
+                                  profile: (e.target as HTMLDivElement).innerHTML,
+                                }))
+                              }
+                              dangerouslySetInnerHTML={{ __html: editorDraft.profile || "<p>Write your profile…</p>" }}
+                            />
+                          )}
+                        </>
+                      )}
+
+                      {activeSectionId === "experience" && (
+                        <div className="structured-editor-list">
+                          {editorDraft.selectedExperience.map((item, index) => (
+                            <div key={item.id} className="structured-editor-row">
+                              <input
+                                value={item.company}
+                                placeholder="Company"
+                                onChange={(e) =>
+                                  setEditorDraft((prev) => ({
+                                    ...prev,
+                                    selectedExperience: prev.selectedExperience.map((entry, entryIndex) => entryIndex === index ? { ...entry, company: e.target.value } : entry),
+                                  }))
+                                }
+                              />
+                              <textarea
+                                className="manual-editor-box"
+                                value={item.text}
+                                placeholder="Impact bullet"
+                                onChange={(e) =>
+                                  setEditorDraft((prev) => ({
+                                    ...prev,
+                                    selectedExperience: prev.selectedExperience.map((entry, entryIndex) => entryIndex === index ? { ...entry, text: e.target.value } : entry),
+                                  }))
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(activeSectionId === "skills" || activeSectionId === "education" || activeSectionId === "interests" || activeSectionId === "languages") && (
+                        <div className="structured-editor-list">
+                          {(activeSectionId === "skills"
+                            ? editorDraft.keySkills
+                            : activeSectionId === "education"
+                              ? editorDraft.education
+                              : activeSectionId === "interests"
+                                ? editorDraft.interests
+                                : editorDraft.languages).map((item, index) => (
+                            <div className="structured-editor-row" key={`${activeSectionId}-${index}`}>
+                              <input
+                                value={item}
+                                onChange={(e) =>
+                                  updateListField(
+                                    activeSectionId === "skills"
+                                      ? "keySkills"
+                                      : activeSectionId === "education"
+                                        ? "education"
+                                        : activeSectionId === "interests"
+                                          ? "interests"
+                                          : "languages",
+                                    index,
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </div>
+                          ))}
+                          <button
+                            className="small-action"
+                            onClick={() =>
+                              appendListField(
+                                activeSectionId === "skills"
+                                  ? "keySkills"
+                                  : activeSectionId === "education"
+                                    ? "education"
+                                    : activeSectionId === "interests"
+                                      ? "interests"
+                                      : "languages",
+                              )
+                            }
+                          >
+                            + Add item
+                          </button>
+                        </div>
+                      )}
+
+                      <footer className="focused-editor-footer">
+                        <button className="primary" onClick={saveEditingResume}>Done</button>
+                        <button onClick={cancelEditingResume}>Cancel</button>
+                      </footer>
+                    </section>
+                  )}
+
                   <div
                     className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
                   >
@@ -1840,6 +2090,9 @@ function App() {
                           if (section.id === "header") {
                             return (
                               <div key={section.id}>
+                                <h2>{previewResume.fullName || "Your Name"}</h2>
+                                <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
+                                <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
                                 {editMode && activeSectionId === section.id ? (
                                   <div className="manual-editor-grid">
                                     <input
@@ -1867,6 +2120,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
+                                <p className="preview-text">{previewResume.profile}</p>
                                 {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
@@ -1887,8 +2141,13 @@ function App() {
                           }
                           if (section.id === "experience") {
                             return (
-                              <div key={section.id} className={editMode ? "section-edit-shell" : ""}>
+                              <div key={section.id}>
                                 <h4>{section.label}</h4>
+                                {previewResume.selectedExperience.map((item) => (
+                                  <div className="bullet-row" key={item.id}>
+                                    <p className="preview-bullet">• {toPlainText(item.text)}</p>
+                                  </div>
+                                ))}
                                 {editMode && activeSectionId === section.id
                                   ? experienceEditor.map((item) => (
                                       <div className="experience-main-box" key={item.id}>
@@ -2045,6 +2304,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
+                                {previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)}
                                 {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
@@ -2067,6 +2327,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
+                                <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
                                 {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
@@ -2089,6 +2350,7 @@ function App() {
                             return (
                               <div key={section.id}>
                                 <h4>{section.label}</h4>
+                                <p className="preview-text">{previewResume.interests.join(" · ")}</p>
                                 {editMode && activeSectionId === section.id ? (
                                   <textarea
                                     className="manual-editor-box"
@@ -2110,6 +2372,7 @@ function App() {
                           return (
                             <div key={section.id}>
                               <h4>{section.label}</h4>
+                              <p className="preview-text">{previewResume.languages.join(" · ")}</p>
                               {editMode && activeSectionId === section.id ? (
                                 <textarea
                                   className="manual-editor-box"
@@ -2132,6 +2395,12 @@ function App() {
                   </div>
 
                   <div className="preview-bottom-actions">
+                    {!editMode && <button onClick={startEditingResume}>Edit</button>}
+                    <button
+                      onClick={() => setSectionPickerOpen((prev) => !prev)}
+                    >
+                      Sections
+                    </button>
                     {editMode ? (
                       <>
                         <button className="primary" onClick={saveEditingResume}>Save edits</button>
