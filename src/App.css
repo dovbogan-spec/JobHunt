@@ -1468,6 +1468,7 @@ textarea {
 }
 
 .preview-content {
+  font-family: Inter, Calibri, Helvetica, sans-serif;
   font-size: 10.5pt;
   line-height: 1.2;
   color: #172624;
