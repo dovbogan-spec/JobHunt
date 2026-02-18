@@ -84,6 +84,10 @@ type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
   model: string;
+  endpoint: string;
+  organizationId: string;
+  azureApiVersion: string;
+  customHeaders: string;
 };
 type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
 type ExperienceFieldWidth = "full" | "half";
@@ -96,6 +100,12 @@ type ExperienceEditorField = {
 type ExperienceEditorItem = {
   id: string;
   fields: ExperienceEditorField[];
+};
+type DropZonePosition = "top" | "bottom" | "left" | "right";
+type DropIndicator = {
+  itemId: string;
+  fieldId: string;
+  position: DropZonePosition;
 };
 
 const SKILL_KEYWORDS = [
@@ -180,6 +190,10 @@ const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
   model: "gpt-4o-mini",
+  endpoint: "",
+  organizationId: "",
+  azureApiVersion: "",
+  customHeaders: "",
 };
 type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
@@ -243,6 +257,7 @@ function App() {
   const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
   const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
@@ -367,44 +382,9 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
-  function getLlmConnectionInfo(settings: LlmSettings) {
-    const providerDefaults: Record<LlmProvider, { model: string }> = {
-      openai: { model: "gpt-4o-mini" },
-      anthropic: { model: "claude-3-5-sonnet-latest" },
-      azureOpenai: { model: "gpt-4o-mini" },
-      gemini: { model: "gemini-1.5-pro" },
-      custom: { model: "" },
-    };
-    const provider = settings.enabled ? settings.provider : "openai";
-    const model =
-      settings.enabled && settings.model.trim()
-        ? settings.model.trim()
-        : providerDefaults[provider].model;
-    return { provider, model };
-  }
-
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
-  }
-
-  function getCustomHeaders(settings: LlmSettings) {
-    const headers: Record<string, string> = {};
-    if (!settings.customHeaders.trim()) return headers;
-    settings.customHeaders.split("\n").forEach((line) => {
-      const [headerName, ...valueParts] = line.split(":");
-      if (!headerName || valueParts.length === 0) return;
-      headers[headerName.trim()] = valueParts.join(":").trim();
-    });
-    return headers;
-  }
-
-  function getModelApiConfig(settings: LlmSettings) {
-    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
-    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
-    const model =
-      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    return { apiUrl, model };
   }
 
   async function testModelApiConnectivity() {
@@ -416,29 +396,6 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ llmSettings: llmSettings.enabled ? llmSettings : undefined }),
-      const { provider, model } = getLlmConnectionInfo(llmSettings);
-      const requestBody = {
-        provider,
-      const { apiUrl, model } = getModelApiConfig(llmSettings);
-      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...getCustomHeaders(llmSettings),
-      };
-      if (llmSettings.organizationId.trim()) {
-        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-      }
-
-      const requestBody: Record<string, unknown> = {
-        model,
-        messages: [{ role: "user", content: "ping" }],
-      };
-
-      const response = await fetch("/api/llm/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -468,30 +425,6 @@ function App() {
         payload,
         llmSettings: llmSettings.enabled ? llmSettings : undefined,
       }),
-    const { provider, model } = getLlmConnectionInfo(llmSettings);
-    const { apiUrl, model } = getModelApiConfig(llmSettings);
-    if (!apiUrl) return null;
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getCustomHeaders(llmSettings),
-    };
-    if (llmSettings.enabled && llmSettings.organizationId.trim())
-      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-
-    const requestBody = {
-      provider,
-      model,
-      messages: [
-        { role: "system", content: AGENT_PROMPTS[agent] },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-    };
-
-    const res = await fetch("/api/llm/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
@@ -1038,7 +971,7 @@ function App() {
     );
     setOpenFieldMenuFor(null);
   }
-  function moveExperienceField(itemId: string, targetFieldId: string, position: "top" | "bottom" | "left" | "right") {
+  function moveExperienceField(itemId: string, targetFieldId: string, position: DropZonePosition) {
     if (!draggingField || draggingField.itemId !== itemId || draggingField.fieldId === targetFieldId) return;
     setExperienceEditor((prev) =>
       prev.map((item) => {
@@ -1056,13 +989,42 @@ function App() {
         const next = [...withoutSource];
         next.splice(insertAt, 0, sourceField);
         if (position === "left" || position === "right") {
-          const target = next.find((field) => field.id === targetFieldId);
-          if (target) target.width = "half";
+          return {
+            ...item,
+            fields: next.map((field) => ({
+              ...field,
+              width:
+                field.id === sourceField.id || field.id === targetFieldId
+                  ? "half"
+                  : "full",
+            })),
+          };
         }
         return { ...item, fields: next };
       }),
     );
     setDraggingField(null);
+    setDropIndicator(null);
+  }
+  function moveExperienceFieldByOffset(itemId: string, fieldId: string, direction: "up" | "down") {
+    setExperienceEditor((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const currentIndex = item.fields.findIndex((field) => field.id === fieldId);
+        if (currentIndex < 0) return item;
+        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= item.fields.length) return item;
+        const next = [...item.fields];
+        const [moved] = next.splice(currentIndex, 1);
+        next.splice(targetIndex, 0, { ...moved, width: "full" });
+        return {
+          ...item,
+          fields: next.map((field, index) =>
+            index === targetIndex ? field : { ...field, width: "full" },
+          ),
+        };
+      }),
+    );
   }
   function addExperienceMainBox() {
     setExperienceEditor((prev) => [
@@ -1572,26 +1534,32 @@ function App() {
                                             ))}
                                           </div>
                                         )}
-                                        <div className="experience-field-grid">
-                                          {item.fields.map((field) => (
+                                        <div className={`experience-field-grid ${draggingField ? "drag-active" : ""}`}>
+                                          {item.fields.map((field, fieldIndex) => (
                                             <div
                                               key={field.id}
                                               className={`experience-sub-box ${field.width === "half" ? "half" : "full"}`}
-                                              draggable
-                                              onDragStart={() =>
-                                                setDraggingField({
-                                                  itemId: item.id,
-                                                  fieldId: field.id,
-                                                })
-                                              }
-                                              onDragEnd={() => setDraggingField(null)}
                                             >
                                               <div className="sub-box-drop-zones">
                                                 {(["top", "bottom", "left", "right"] as const).map((zone) => (
                                                   <button
                                                     key={zone}
-                                                    className={`drop-zone ${zone}`}
-                                                    onDragOver={(e) => e.preventDefault()}
+                                                    className={`drop-zone ${zone} ${dropIndicator?.itemId === item.id && dropIndicator.fieldId === field.id && dropIndicator.position === zone ? "active" : ""}`}
+                                                    onDragOver={(e) => {
+                                                      e.preventDefault();
+                                                      setDropIndicator({ itemId: item.id, fieldId: field.id, position: zone });
+                                                    }}
+                                                    onDragEnter={(e) => {
+                                                      e.preventDefault();
+                                                      setDropIndicator({ itemId: item.id, fieldId: field.id, position: zone });
+                                                    }}
+                                                    onDragLeave={() => {
+                                                      setDropIndicator((prev) =>
+                                                        prev?.itemId === item.id && prev.fieldId === field.id && prev.position === zone
+                                                          ? null
+                                                          : prev,
+                                                      );
+                                                    }}
                                                     onDrop={(e) => {
                                                       e.preventDefault();
                                                       moveExperienceField(item.id, field.id, zone);
@@ -1600,12 +1568,59 @@ function App() {
                                                   />
                                                 ))}
                                               </div>
-                                              <label className="sub-box-label">{field.type === "subTitle" ? "Sub title" : field.type}</label>
+                                              <div className="sub-box-header">
+                                                <label className="sub-box-label">{field.type === "subTitle" ? "Sub title" : field.type}</label>
+                                                <div className="field-actions">
+                                                  <button
+                                                    type="button"
+                                                    className="drag-handle"
+                                                    draggable
+                                                    onDragStart={(e) => {
+                                                      e.stopPropagation();
+                                                      setDraggingField({
+                                                        itemId: item.id,
+                                                        fieldId: field.id,
+                                                      });
+                                                      setDropIndicator(null);
+                                                      e.dataTransfer.effectAllowed = "move";
+                                                    }}
+                                                    onDragEnd={() => {
+                                                      setDraggingField(null);
+                                                      setDropIndicator(null);
+                                                    }}
+                                                    aria-label="Drag to reorder field"
+                                                    title="Drag to reorder"
+                                                  >
+                                                    ⋮⋮
+                                                  </button>
+                                                  <div className="field-reorder-buttons" role="group" aria-label="Reorder field">
+                                                    <button
+                                                      type="button"
+                                                      className="reorder-btn"
+                                                      onClick={() => moveExperienceFieldByOffset(item.id, field.id, "up")}
+                                                      disabled={fieldIndex === 0}
+                                                      aria-label="Move field up"
+                                                    >
+                                                      ↑
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      className="reorder-btn"
+                                                      onClick={() => moveExperienceFieldByOffset(item.id, field.id, "down")}
+                                                      disabled={fieldIndex === item.fields.length - 1}
+                                                      aria-label="Move field down"
+                                                    >
+                                                      ↓
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              </div>
                                               {field.type === "date" ? (
                                                 <input
                                                   type="date"
                                                   className="manual-editor-box"
                                                   value={field.value}
+                                                  onDragStart={(e) => e.preventDefault()}
                                                   onChange={(e) =>
                                                     updateExperienceField(item.id, field.id, e.target.value)
                                                   }
@@ -1616,6 +1631,7 @@ function App() {
                                                   value={field.value}
                                                   rows={field.type === "text" ? 4 : 2}
                                                   placeholder={`Add ${field.type === "subTitle" ? "sub title" : field.type}`}
+                                                  onDragStart={(e) => e.preventDefault()}
                                                   onChange={(e) =>
                                                     updateExperienceField(item.id, field.id, e.target.value)
                                                   }
