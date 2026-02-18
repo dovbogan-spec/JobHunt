@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
-import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
+import { type AgentPromptId } from "./agentPrompts";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -274,6 +274,7 @@ function App() {
   const [connectivityStatus, setConnectivityStatus] =
     useState<ConnectivityStatus>("idle");
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
+  const [byokEnabled, setByokEnabled] = useState(false);
   const previewRef = useRef<HTMLElement | null>(null);
   const previewResume = editMode ? editorDraft : resume;
 
@@ -305,6 +306,21 @@ function App() {
     return () =>
       document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((response) => response.json())
+      .then((data: { features?: { byokEnabled?: boolean } }) => {
+        setByokEnabled(Boolean(data.features?.byokEnabled));
+      })
+      .catch(() => {
+        setByokEnabled(false);
+      });
+  }, []);
+  useEffect(() => {
+    if (!byokEnabled && tab === "llmIntegration") {
+      setTab("resume");
+    }
+  }, [byokEnabled, tab]);
 
   const companies = useMemo(
     () => [
@@ -344,56 +360,9 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
-  function getLlmConnectionInfo(settings: LlmSettings) {
-    const providerDefaults: Record<
-      LlmProvider,
-      { endpoint: string; model: string }
-    > = {
-      openai: {
-        endpoint: "https://api.openai.com/v1/chat/completions",
-        model: "gpt-4o-mini",
-      },
-      anthropic: {
-        endpoint: "https://api.anthropic.com/v1/messages",
-        model: "claude-3-5-sonnet-latest",
-      },
-      azureOpenai: { endpoint: "", model: "gpt-4o-mini" },
-      gemini: {
-        endpoint:
-          "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        model: "gemini-1.5-pro",
-      },
-      custom: { endpoint: "", model: "" },
-    };
-    const providerDefault = providerDefaults[settings.provider];
-    const endpoint = settings.endpoint.trim() || providerDefault.endpoint;
-    const model = settings.model.trim() || providerDefault.model;
-    return { endpoint, model };
-  }
-
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
-  }
-
-  function getCustomHeaders(settings: LlmSettings) {
-    const headers: Record<string, string> = {};
-    if (!settings.customHeaders.trim()) return headers;
-    settings.customHeaders.split("\n").forEach((line) => {
-      const [headerName, ...valueParts] = line.split(":");
-      if (!headerName || valueParts.length === 0) return;
-      headers[headerName.trim()] = valueParts.join(":").trim();
-    });
-    return headers;
-  }
-
-  function getModelApiConfig(settings: LlmSettings) {
-    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
-    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
-    const model =
-      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    const key = settings.apiKey.trim() || import.meta.env.VITE_LLM_API_KEY;
-    return { apiUrl, model, key };
   }
 
   async function testModelApiConnectivity() {
@@ -401,35 +370,10 @@ function App() {
     setConnectivityErrorCode("");
 
     try {
-      const { apiUrl, model, key } = getModelApiConfig(llmSettings);
-      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...getCustomHeaders(llmSettings),
-      };
-      if (key) headers.Authorization = `Bearer ${key}`;
-      if (llmSettings.organizationId.trim()) {
-        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-      }
-
-      const requestBody: Record<string, unknown> = {
-        model,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        temperature: 0,
-      };
-      if (
-        llmSettings.provider === "azureOpenai" &&
-        llmSettings.azureApiVersion.trim()
-      ) {
-        requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-      }
-
-      const response = await fetch(apiUrl, {
+      const response = await fetch("/api/llm/ping", {
         method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llmSettings: llmSettings.enabled ? llmSettings : undefined }),
       });
 
       if (!response.ok) {
@@ -451,43 +395,19 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
-    const { apiUrl, model, key } = getModelApiConfig(llmSettings);
-    if (!apiUrl) return null;
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getCustomHeaders(llmSettings),
-    };
-    if (key) headers.Authorization = `Bearer ${key}`;
-    if (llmSettings.enabled && llmSettings.organizationId.trim())
-      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-
-    const requestBody: Record<string, unknown> = {
-      model,
-      messages: [
-        { role: "system", content: AGENT_PROMPTS[agent] },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-      temperature: 0.2,
-    };
-
-    if (
-      llmSettings.enabled &&
-      llmSettings.provider === "azureOpenai" &&
-      llmSettings.azureApiVersion.trim()
-    ) {
-      requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-    }
-
-    const res = await fetch(apiUrl, {
+    const res = await fetch("/api/llm/chat", {
       method: "POST",
-      headers,
-      body: JSON.stringify(requestBody),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent,
+        payload,
+        llmSettings: llmSettings.enabled ? llmSettings : undefined,
+      }),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
+    const content = data.content || "{}";
     try {
       return JSON.parse(content);
     } catch {
@@ -1111,12 +1031,14 @@ function App() {
       <header className="header">
         <h1>🌿 Job Hunter</h1>
         <div className="header-actions">
-          <button
-            className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
-            onClick={() => setTab("llmIntegration")}
-          >
-            🤖 Model API
-          </button>
+          {byokEnabled && (
+            <button
+              className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
+              onClick={() => setTab("llmIntegration")}
+            >
+              🤖 Model API
+            </button>
+          )}
           <button className="small-action" onClick={downloadResumePdf}>
             📥 Download PDF
           </button>
@@ -1703,7 +1625,7 @@ function App() {
             </>
           )}
 
-          {tab === "llmIntegration" && (
+          {byokEnabled && tab === "llmIntegration" && (
             <section className="llm-integration">
               <div className="llm-card">
                 <div className="llm-header">
