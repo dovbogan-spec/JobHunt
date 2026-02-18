@@ -197,15 +197,36 @@ textarea {
   color: #3b6250;
 }
 
+.tabs-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 0.9fr);
   gap: 0.9rem;
   align-items: stretch;
 }
 
 .workspace.workspace-edit-mode {
-  grid-template-columns: 1fr 0.65fr 1.45fr;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 0.9fr);
+}
+
+.section-manager-panel {
+  order: 1;
+}
+
+.resume-preview {
+  order: 2;
+}
+
+.skills-panel {
+  order: 3;
+}
+
 .resume-editor-pane {
   background: #ffffff;
   border-radius: 0.9rem;
