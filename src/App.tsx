@@ -77,6 +77,18 @@ type LlmSettings = {
   azureApiVersion: string;
   customHeaders: string;
 };
+type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
+type ExperienceFieldWidth = "full" | "half";
+type ExperienceEditorField = {
+  id: string;
+  type: ExperienceFieldType;
+  value: string;
+  width: ExperienceFieldWidth;
+};
+type ExperienceEditorItem = {
+  id: string;
+  fields: ExperienceEditorField[];
+};
 
 const SKILL_KEYWORDS = [
   "react",
@@ -225,6 +237,9 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
+  const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
+  const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
+  const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
@@ -885,25 +900,131 @@ function App() {
   }
   function startEditingResume() {
     setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
+    setExperienceEditor(
+      resume.selectedExperience.map((item) => ({
+        id: item.id,
+        fields: [
+          {
+            id: uuidv4(),
+            type: "title",
+            value: item.company || resume.organization || "",
+            width: "full",
+          },
+          {
+            id: uuidv4(),
+            type: "text",
+            value: item.text,
+            width: "full",
+          },
+        ],
+      })),
+    );
     setEditMode(true);
   }
   function saveEditingResume() {
-    setResume(editorDraft);
+    const selectedExperience = experienceEditor
+      .map((item) => {
+        const titleField = item.fields.find((field) => field.type === "title" || field.type === "subTitle");
+        const text = item.fields
+          .map((field) => field.value.trim())
+          .filter(Boolean)
+          .join("\n");
+        return {
+          id: item.id,
+          text,
+          company: titleField?.value.trim() || editorDraft.organization || "",
+          skillTags: [],
+          selected: true,
+        } satisfies ExperienceItem;
+      })
+      .filter((item) => item.text);
+    const nextResume = { ...editorDraft, selectedExperience };
+    setResume(nextResume);
+    setEditorDraft(nextResume);
     setEditMode(false);
+    setOpenFieldMenuFor(null);
+    setDraggingField(null);
     setSaveMessage("Resume edits saved.");
   }
   function cancelEditingResume() {
     setEditorDraft(resume);
+    setExperienceEditor([]);
+    setOpenFieldMenuFor(null);
+    setDraggingField(null);
     setEditMode(false);
   }
-  function moveBullet(index: number, direction: "up" | "down") {
-    setEditorDraft((prev) => {
-      const next = [...prev.selectedExperience];
-      const t = direction === "up" ? index - 1 : index + 1;
-      if (t < 0 || t >= next.length) return prev;
-      [next[index], next[t]] = [next[t], next[index]];
-      return { ...prev, selectedExperience: next };
-    });
+  function updateExperienceField(itemId: string, fieldId: string, value: string) {
+    setExperienceEditor((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              fields: item.fields.map((field) =>
+                field.id === fieldId ? { ...field, value } : field,
+              ),
+            }
+          : item,
+      ),
+    );
+  }
+  function addExperienceField(itemId: string, type: ExperienceFieldType) {
+    setExperienceEditor((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              fields: [
+                ...item.fields,
+                {
+                  id: uuidv4(),
+                  type,
+                  value: "",
+                  width: type === "date" ? "half" : "full",
+                },
+              ],
+            }
+          : item,
+      ),
+    );
+    setOpenFieldMenuFor(null);
+  }
+  function moveExperienceField(itemId: string, targetFieldId: string, position: "top" | "bottom" | "left" | "right") {
+    if (!draggingField || draggingField.itemId !== itemId || draggingField.fieldId === targetFieldId) return;
+    setExperienceEditor((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const source = item.fields.find((field) => field.id === draggingField.fieldId);
+        const targetIndex = item.fields.findIndex((field) => field.id === targetFieldId);
+        if (!source || targetIndex < 0) return item;
+        const withoutSource = item.fields.filter((field) => field.id !== draggingField.fieldId);
+        const adjustedTargetIndex = withoutSource.findIndex((field) => field.id === targetFieldId);
+        const sourceField: ExperienceEditorField = {
+          ...source,
+          width: position === "left" || position === "right" ? "half" : "full",
+        };
+        const insertAt = position === "top" || position === "left" ? adjustedTargetIndex : adjustedTargetIndex + 1;
+        const next = [...withoutSource];
+        next.splice(insertAt, 0, sourceField);
+        if (position === "left" || position === "right") {
+          const target = next.find((field) => field.id === targetFieldId);
+          if (target) target.width = "half";
+        }
+        return { ...item, fields: next };
+      }),
+    );
+    setDraggingField(null);
+  }
+  function addExperienceMainBox() {
+    setExperienceEditor((prev) => [
+      ...prev,
+      {
+        id: uuidv4(),
+        fields: [
+          { id: uuidv4(), type: "title", value: "", width: "full" },
+          { id: uuidv4(), type: "text", value: "", width: "full" },
+        ],
+      },
+    ]);
   }
   async function togglePreviewFullscreen() {
     if (!previewRef.current) return;
@@ -1338,57 +1459,101 @@ function App() {
                           }
                           if (section.id === "experience") {
                             return (
-                              <div key={section.id}>
+                              <div key={section.id} className={editMode ? "section-edit-shell" : ""}>
                                 <h4>{section.label}</h4>
-                                {previewResume.selectedExperience.map((item, idx) => (
-                                  <div className="bullet-row" key={item.id}>
-                                    {editMode ? (
-                                      <textarea
-                                        className="manual-editor-box"
-                                        value={item.text}
-                                        placeholder="Add an experience bullet"
-                                        onChange={(e) =>
-                                          setEditorDraft((prev) => ({
-                                            ...prev,
-                                            selectedExperience: prev.selectedExperience.map((entry) =>
-                                              entry.id === item.id
-                                                ? { ...entry, text: e.target.value }
-                                                : entry,
-                                            ),
-                                          }))
-                                        }
-                                      />
-                                    ) : (
-                                      <p className="preview-bullet">• {toPlainText(item.text)}</p>
-                                    )}
-                                    {editMode && (
-                                      <div className="move-controls">
-                                        <button onClick={() => moveBullet(idx, "up")}>↑</button>
-                                        <button onClick={() => moveBullet(idx, "down")}>↓</button>
+                                {editMode
+                                  ? experienceEditor.map((item) => (
+                                      <div className="experience-main-box" key={item.id}>
+                                        <div className="experience-box-toolbar">
+                                          <span>Editing toolbar</span>
+                                          <button
+                                            className="small-action"
+                                            onClick={() =>
+                                              setOpenFieldMenuFor((prev) =>
+                                                prev === item.id ? null : item.id,
+                                              )
+                                            }
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                        {openFieldMenuFor === item.id && (
+                                          <div className="field-add-menu">
+                                            {(["text", "date", "title", "subTitle"] as ExperienceFieldType[]).map((type) => (
+                                              <button
+                                                key={type}
+                                                onClick={() => addExperienceField(item.id, type)}
+                                              >
+                                                {type === "subTitle" ? "sub title" : type}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <div className="experience-field-grid">
+                                          {item.fields.map((field) => (
+                                            <div
+                                              key={field.id}
+                                              className={`experience-sub-box ${field.width === "half" ? "half" : "full"}`}
+                                              draggable
+                                              onDragStart={() =>
+                                                setDraggingField({
+                                                  itemId: item.id,
+                                                  fieldId: field.id,
+                                                })
+                                              }
+                                              onDragEnd={() => setDraggingField(null)}
+                                            >
+                                              <div className="sub-box-drop-zones">
+                                                {(["top", "bottom", "left", "right"] as const).map((zone) => (
+                                                  <button
+                                                    key={zone}
+                                                    className={`drop-zone ${zone}`}
+                                                    onDragOver={(e) => e.preventDefault()}
+                                                    onDrop={(e) => {
+                                                      e.preventDefault();
+                                                      moveExperienceField(item.id, field.id, zone);
+                                                    }}
+                                                    aria-label={`Drop ${zone}`}
+                                                  />
+                                                ))}
+                                              </div>
+                                              <label className="sub-box-label">{field.type === "subTitle" ? "Sub title" : field.type}</label>
+                                              {field.type === "date" ? (
+                                                <input
+                                                  type="date"
+                                                  className="manual-editor-box"
+                                                  value={field.value}
+                                                  onChange={(e) =>
+                                                    updateExperienceField(item.id, field.id, e.target.value)
+                                                  }
+                                                />
+                                              ) : (
+                                                <textarea
+                                                  className="manual-editor-box"
+                                                  value={field.value}
+                                                  rows={field.type === "text" ? 4 : 2}
+                                                  placeholder={`Add ${field.type === "subTitle" ? "sub title" : field.type}`}
+                                                  onChange={(e) =>
+                                                    updateExperienceField(item.id, field.id, e.target.value)
+                                                  }
+                                                />
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
-                                    )}
-                                  </div>
-                                ))}
+                                    ))
+                                  : previewResume.selectedExperience.map((item) => (
+                                      <div className="bullet-row" key={item.id}>
+                                        <p className="preview-bullet">• {toPlainText(item.text)}</p>
+                                      </div>
+                                    ))}
                                 {editMode && (
                                   <button
                                     className="small-action"
-                                    onClick={() =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        selectedExperience: [
-                                          ...prev.selectedExperience,
-                                          {
-                                            id: uuidv4(),
-                                            text: "",
-                                            company: prev.organization || "",
-                                            skillTags: [],
-                                            selected: true,
-                                          },
-                                        ],
-                                      }))
-                                    }
+                                    onClick={addExperienceMainBox}
                                   >
-                                    + Add bullet
+                                    + Add main box
                                   </button>
                                 )}
                               </div>
