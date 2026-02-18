@@ -67,6 +67,19 @@ type AgentOutputs = {
   draft: Record<string, unknown>;
   gap: Record<string, unknown>;
 };
+
+type CandidateMatrix = {
+  candidateName: string;
+  professionalTimeline: string[];
+  technicalSkills: string[];
+  industryDomains: string[];
+  methodologies: string[];
+  certifications: string[];
+  totalYearsExperience: string;
+  primaryExpertDomain: string;
+  education: string[];
+  parsedBullets: string[];
+};
 type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
@@ -641,13 +654,54 @@ function App() {
 
   async function runAgent3Parser(documentText: string) {
     const llm = await callModel("experienceParser", { documentText });
-    if (llm) return llm;
-    return {
+    const fallback: CandidateMatrix = {
+      candidateName: extractPersonInfo(documentText).fullName || "Unknown",
+      professionalTimeline: [],
       parsedBullets: parseExperience(documentText).map((x) => x.text),
       technicalSkills: SKILL_KEYWORDS.filter((skill) =>
         documentText.toLowerCase().includes(skill),
       ),
+      industryDomains: [],
+      methodologies: [],
+      certifications: [],
+      totalYearsExperience: "unknown",
+      primaryExpertDomain: "unknown",
+      education: [],
     };
+
+    if (!llm || typeof llm !== "object") return fallback;
+
+    const candidate = llm as Record<string, unknown>;
+    return {
+      candidateName: String(candidate.candidateName || fallback.candidateName),
+      professionalTimeline: Array.isArray(candidate.professionalTimeline)
+        ? candidate.professionalTimeline.map((item) => String(item)).filter(Boolean)
+        : fallback.professionalTimeline,
+      technicalSkills: Array.isArray(candidate.technicalSkills)
+        ? candidate.technicalSkills.map((item) => String(item)).filter(Boolean)
+        : fallback.technicalSkills,
+      industryDomains: Array.isArray(candidate.industryDomains)
+        ? candidate.industryDomains.map((item) => String(item)).filter(Boolean)
+        : fallback.industryDomains,
+      methodologies: Array.isArray(candidate.methodologies)
+        ? candidate.methodologies.map((item) => String(item)).filter(Boolean)
+        : fallback.methodologies,
+      certifications: Array.isArray(candidate.certifications)
+        ? candidate.certifications.map((item) => String(item)).filter(Boolean)
+        : fallback.certifications,
+      totalYearsExperience: String(
+        candidate.totalYearsExperience || fallback.totalYearsExperience,
+      ),
+      primaryExpertDomain: String(
+        candidate.primaryExpertDomain || fallback.primaryExpertDomain,
+      ),
+      education: Array.isArray(candidate.education)
+        ? candidate.education.map((item) => String(item)).filter(Boolean)
+        : fallback.education,
+      parsedBullets: Array.isArray(candidate.parsedBullets)
+        ? candidate.parsedBullets.map((item) => String(item)).filter(Boolean)
+        : fallback.parsedBullets,
+    } satisfies CandidateMatrix;
   }
 
   async function runAgent4Matcher(
@@ -1096,7 +1150,38 @@ function App() {
         throw new Error(payload.error || "Could not extract file text");
       }
 
-      setExperienceDoc(payload.extracted?.text || "");
+      const extractedText = payload.extracted?.text || "";
+      setExperienceDoc(extractedText);
+
+      const info = extractPersonInfo(extractedText);
+      setResume((prev) => ({
+        ...prev,
+        fullName: info.fullName || prev.fullName,
+        email: info.email || prev.email,
+        phone: info.phone || prev.phone,
+      }));
+
+      const candidate = await runAgent3Parser(extractedText);
+      const parsedBullets = candidate.parsedBullets.length
+        ? candidate.parsedBullets
+        : parseExperience(extractedText).map((item) => item.text);
+
+      const parsedItems: ExperienceItem[] = parsedBullets.map((line) => ({
+        id: uuidv4(),
+        text: line,
+        company:
+          line.match(/at\s+([A-Z][A-Za-z0-9&\s-]+)/)?.[1]?.trim() || "General",
+        skillTags: SKILL_KEYWORDS.filter((skill) =>
+          line.toLowerCase().includes(skill),
+        ).slice(0, 8),
+        selected: true,
+      }));
+      setExperienceItems(
+        parsedItems.map((item) => ({
+          ...item,
+          skillTags: item.skillTags.length ? item.skillTags : ["general"],
+        })),
+      );
     } catch {
       setChatOpen(true);
       setChatMessages((prev) => [
