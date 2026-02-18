@@ -60,8 +60,15 @@ Smoke flow:
 1. Import repo into Vercel.
 2. Provision Postgres and apply `db/schema.sql`.
 3. (Optional) Attach Blob store for production file storage.
-4. Set env vars from `.env.example`.
-5. Deploy and verify:
+4. Define secrets in Vercel Project Environment Variables (Production/Preview/Development as needed):
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL`
+   - `DATABASE_URL`
+   - Optional flags/tokens from `.env.example`
+5. If you deploy via GitHub Actions, mirror required values as GitHub Actions secrets and pass them only to server-side build/deploy steps.
+6. Keep API routes/server modules (`api/*`, `server/*`) reading provider credentials from `process.env` only. Do not use browser `localStorage` or client-exposed `VITE_*` variables for raw provider keys.
+7. BYOK should use token exchange or encrypted server-side storage tied to authenticated users; do not store raw keys in browser storage.
+8. Deploy and verify:
    - `GET /api/health` returns `{ ok, openaiConfigured, model, checks }`.
 
 ## Troubleshooting
