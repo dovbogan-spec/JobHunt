@@ -199,9 +199,48 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 1.45fr;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.9rem;
   align-items: stretch;
+}
+
+.workspace.workspace-edit-mode {
+  grid-template-columns: 1fr 0.65fr 1.45fr;
+.resume-editor-pane {
+  background: #ffffff;
+  border-radius: 0.9rem;
+  border: 1px solid #d2e9da;
+  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  padding: 1rem;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.resume-editor-scroll {
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.resume-editor-header h3 {
+  margin: 0;
+}
+
+.resume-editor-header p {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  color: #3b6250;
+}
+
+.resume-editor-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.editor-empty-state {
+  margin: 0;
+  color: #3b6250;
 }
 
 .skills-panel {
@@ -471,6 +510,80 @@ textarea {
   background: #f6fcf8;
 }
 
+.section-manager-panel {
+  background: #ffffff;
+  border-radius: 0.9rem;
+  border: 1px solid #d2e9da;
+  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  padding: 0.9rem;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.section-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.section-manager-header h4 {
+  margin: 0;
+}
+
+.section-manager-header span {
+  font-size: 0.8rem;
+  color: #486b5b;
+  font-weight: 600;
+}
+
+.section-manager-list {
+  overflow: auto;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+}
+
+.section-manager-row {
+  border: 1px solid #cde2d6;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+  background: #f8fcf9;
+}
+
+.section-manager-row.active {
+  border-color: #2f855a;
+  box-shadow: 0 0 0 1px #2f855a;
+  background: #eef8f2;
+}
+
+.section-manager-row.is-hidden {
+  opacity: 0.78;
+}
+
+.section-select-btn {
+  text-align: left;
+  font-weight: 700;
+}
+
+.section-manager-row input {
+  grid-column: 1 / -1;
+}
+
+.section-order-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.section-order-buttons button {
+  min-width: 40px;
+}
+
 .section-picker-header {
   display: flex;
   align-items: center;
@@ -573,7 +686,7 @@ textarea {
   overflow: auto;
   border: 1px solid #cee6d7;
   border-radius: 1.3rem;
-  padding: 4.6rem 1.1rem 5.2rem;
+  padding: 1.1rem;
   position: relative;
   display: grid;
   align-items: start;
@@ -629,11 +742,13 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 1rem;
-  z-index: 2;
+}
+
+.editor-actions-footer {
+  justify-content: center;
+  border-top: 1px solid #d8ece0;
+  padding-top: 0.7rem;
+  margin-top: 0.7rem;
 }
 
 .preview-bottom-actions button {
@@ -890,6 +1005,7 @@ textarea {
 @media (max-width: 1100px) {
   .app-layout,
   .workspace,
+  .workspace.workspace-edit-mode,
   .intake,
   .cover-letter,
   .llm-integration {
@@ -1018,12 +1134,57 @@ textarea {
   margin-bottom: 0.3rem;
 }
 
+.sub-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.field-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.drag-handle,
+.reorder-btn {
+  border: 1px solid #c7ddd0;
+  background: #f2faf5;
+  color: #315f4d;
+  border-radius: 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drag-handle {
+  padding: 0.35rem 0.4rem;
+  letter-spacing: 0.12em;
+}
+
+.field-reorder-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.reorder-btn {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
+.reorder-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .sub-box-drop-zones .drop-zone {
   position: absolute;
-  border: 1px dashed transparent;
+  border: 2px dashed transparent;
   background: transparent;
   opacity: 0;
   transition: all 0.16s ease;
+  z-index: 2;
 }
 
 .experience-sub-box:hover .drop-zone {
@@ -1031,25 +1192,37 @@ textarea {
   border-color: #96c7ad;
 }
 
-.drop-zone.top,
-.drop-zone.bottom {
-  left: 25%;
-  right: 25%;
-  height: 8px;
+.experience-field-grid.drag-active .drop-zone {
+  opacity: 1;
+  border-color: #6ba98a;
+  background: rgba(107, 169, 138, 0.12);
 }
 
-.drop-zone.top { top: -4px; }
-.drop-zone.bottom { bottom: -4px; }
+.drop-zone.active {
+  border-color: #2f8f62;
+  background: rgba(47, 143, 98, 0.28);
+  box-shadow: 0 0 0 2px rgba(47, 143, 98, 0.15);
+}
+
+.drop-zone.top,
+.drop-zone.bottom {
+  left: 18%;
+  right: 18%;
+  height: 14px;
+}
+
+.drop-zone.top { top: -7px; }
+.drop-zone.bottom { bottom: -7px; }
 
 .drop-zone.left,
 .drop-zone.right {
-  top: 30%;
-  bottom: 30%;
-  width: 8px;
+  top: 20%;
+  bottom: 20%;
+  width: 14px;
 }
 
-.drop-zone.left { left: -4px; }
-.drop-zone.right { right: -4px; }
+.drop-zone.left { left: -7px; }
+.drop-zone.right { right: -7px; }
 
 @media (max-width: 760px) {
   .manual-editor-grid {
