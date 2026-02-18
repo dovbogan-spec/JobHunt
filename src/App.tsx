@@ -83,7 +83,6 @@ type CandidateMatrix = {
 type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
-  apiKey: string;
   model: string;
   endpoint: string;
   organizationId: string;
@@ -184,7 +183,6 @@ const initialResume: ResumeData = {
 const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
-  apiKey: "",
   model: "gpt-4o-mini",
   endpoint: "",
   organizationId: "",
@@ -278,7 +276,11 @@ function App() {
     const raw = localStorage.getItem(LLM_SETTINGS_STORAGE_KEY);
     if (!raw) return defaultLlmSettings;
     try {
-      return { ...defaultLlmSettings, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw) as Partial<LlmSettings> & {
+        apiKey?: string;
+      };
+      const { apiKey: _legacyApiKey, ...safeSettings } = parsed;
+      return { ...defaultLlmSettings, ...safeSettings };
     } catch {
       return defaultLlmSettings;
     }
@@ -405,8 +407,7 @@ function App() {
     const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
     const model =
       configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    const key = settings.apiKey.trim() || import.meta.env.VITE_LLM_API_KEY;
-    return { apiUrl, model, key };
+    return { apiUrl, model };
   }
 
   async function testModelApiConnectivity() {
@@ -414,14 +415,13 @@ function App() {
     setConnectivityErrorCode("");
 
     try {
-      const { apiUrl, model, key } = getModelApiConfig(llmSettings);
+      const { apiUrl, model } = getModelApiConfig(llmSettings);
       if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...getCustomHeaders(llmSettings),
       };
-      if (key) headers.Authorization = `Bearer ${key}`;
       if (llmSettings.organizationId.trim()) {
         headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
       }
@@ -464,14 +464,13 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
-    const { apiUrl, model, key } = getModelApiConfig(llmSettings);
+    const { apiUrl, model } = getModelApiConfig(llmSettings);
     if (!apiUrl) return null;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...getCustomHeaders(llmSettings),
     };
-    if (key) headers.Authorization = `Bearer ${key}`;
     if (llmSettings.enabled && llmSettings.organizationId.trim())
       headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
 
@@ -1808,8 +1807,9 @@ function App() {
                   </label>
                 </div>
                 <p className="llm-subtitle">
-                  Configure model API settings for your provider. These values are
-                  stored locally on this device.
+                  Configure provider routing only. API credentials are managed
+                  server-side via Vercel environment variables/secrets and are
+                  never stored in browser localStorage.
                 </p>
                 <div className="llm-grid">
                   <label>
@@ -1843,20 +1843,6 @@ function App() {
                         }))
                       }
                       placeholder="Model name"
-                    />
-                  </label>
-                  <label>
-                    <span>API key / token</span>
-                    <input
-                      type="password"
-                      value={llmSettings.apiKey}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          apiKey: e.target.value,
-                        }))
-                      }
-                      placeholder="sk-..."
                     />
                   </label>
                   <label>
@@ -1946,7 +1932,8 @@ function App() {
                   </li>
                   <li>
                     <strong>Claude / Anthropic:</strong> set model to a Claude
-                    Messages API model and provide your Anthropic token.
+                    Messages API model; keep credentials in server-side env
+                    vars only.
                   </li>
                   <li>
                     <strong>Copilot / Azure OpenAI:</strong> endpoint should be
@@ -1954,7 +1941,7 @@ function App() {
                   </li>
                   <li>
                     <strong>Gemini / Google AI:</strong> include a Gemini model
-                    and API key/token.
+                    and configure credentials on the server (not in-browser).
                   </li>
                   <li>
                     <strong>Custom endpoint:</strong> enter endpoint/model and
