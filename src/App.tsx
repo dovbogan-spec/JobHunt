@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
-import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
+import { type AgentPromptId } from "./agentPrompts";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -281,6 +281,7 @@ function App() {
   const [connectivityStatus, setConnectivityStatus] =
     useState<ConnectivityStatus>("idle");
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
+  const [byokEnabled, setByokEnabled] = useState(false);
   const previewRef = useRef<HTMLElement | null>(null);
   const previewResume = editMode ? editorDraft : resume;
 
@@ -312,6 +313,21 @@ function App() {
     return () =>
       document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((response) => response.json())
+      .then((data: { features?: { byokEnabled?: boolean } }) => {
+        setByokEnabled(Boolean(data.features?.byokEnabled));
+      })
+      .catch(() => {
+        setByokEnabled(false);
+      });
+  }, []);
+  useEffect(() => {
+    if (!byokEnabled && tab === "llmIntegration") {
+      setTab("resume");
+    }
+  }, [byokEnabled, tab]);
 
   const companies = useMemo(
     () => [
@@ -396,6 +412,10 @@ function App() {
     setConnectivityErrorCode("");
 
     try {
+      const response = await fetch("/api/llm/ping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llmSettings: llmSettings.enabled ? llmSettings : undefined }),
       const { provider, model } = getLlmConnectionInfo(llmSettings);
       const requestBody = {
         provider,
@@ -440,6 +460,14 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
+    const res = await fetch("/api/llm/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agent,
+        payload,
+        llmSettings: llmSettings.enabled ? llmSettings : undefined,
+      }),
     const { provider, model } = getLlmConnectionInfo(llmSettings);
     const { apiUrl, model } = getModelApiConfig(llmSettings);
     if (!apiUrl) return null;
@@ -1164,12 +1192,14 @@ function App() {
       <header className="header">
         <h1>🌿 Job Hunter</h1>
         <div className="header-actions">
-          <button
-            className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
-            onClick={() => setTab("llmIntegration")}
-          >
-            🤖 Model API
-          </button>
+          {byokEnabled && (
+            <button
+              className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
+              onClick={() => setTab("llmIntegration")}
+            >
+              🤖 Model API
+            </button>
+          )}
           <button className="small-action" onClick={downloadResumePdf}>
             📥 Download PDF
           </button>
@@ -1756,7 +1786,7 @@ function App() {
             </>
           )}
 
-          {tab === "llmIntegration" && (
+          {byokEnabled && tab === "llmIntegration" && (
             <section className="llm-integration">
               <div className="llm-card">
                 <div className="llm-header">
