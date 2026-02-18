@@ -84,6 +84,10 @@ type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
   model: string;
+  endpoint: string;
+  organizationId: string;
+  azureApiVersion: string;
+  customHeaders: string;
 };
 type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
 type ExperienceFieldWidth = "full" | "half";
@@ -180,6 +184,10 @@ const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
   model: "gpt-4o-mini",
+  endpoint: "",
+  organizationId: "",
+  azureApiVersion: "",
+  customHeaders: "",
 };
 type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
@@ -367,44 +375,9 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
-  function getLlmConnectionInfo(settings: LlmSettings) {
-    const providerDefaults: Record<LlmProvider, { model: string }> = {
-      openai: { model: "gpt-4o-mini" },
-      anthropic: { model: "claude-3-5-sonnet-latest" },
-      azureOpenai: { model: "gpt-4o-mini" },
-      gemini: { model: "gemini-1.5-pro" },
-      custom: { model: "" },
-    };
-    const provider = settings.enabled ? settings.provider : "openai";
-    const model =
-      settings.enabled && settings.model.trim()
-        ? settings.model.trim()
-        : providerDefaults[provider].model;
-    return { provider, model };
-  }
-
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
-  }
-
-  function getCustomHeaders(settings: LlmSettings) {
-    const headers: Record<string, string> = {};
-    if (!settings.customHeaders.trim()) return headers;
-    settings.customHeaders.split("\n").forEach((line) => {
-      const [headerName, ...valueParts] = line.split(":");
-      if (!headerName || valueParts.length === 0) return;
-      headers[headerName.trim()] = valueParts.join(":").trim();
-    });
-    return headers;
-  }
-
-  function getModelApiConfig(settings: LlmSettings) {
-    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
-    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
-    const model =
-      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    return { apiUrl, model };
   }
 
   async function testModelApiConnectivity() {
@@ -416,29 +389,6 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ llmSettings: llmSettings.enabled ? llmSettings : undefined }),
-      const { provider, model } = getLlmConnectionInfo(llmSettings);
-      const requestBody = {
-        provider,
-      const { apiUrl, model } = getModelApiConfig(llmSettings);
-      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...getCustomHeaders(llmSettings),
-      };
-      if (llmSettings.organizationId.trim()) {
-        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-      }
-
-      const requestBody: Record<string, unknown> = {
-        model,
-        messages: [{ role: "user", content: "ping" }],
-      };
-
-      const response = await fetch("/api/llm/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -468,30 +418,6 @@ function App() {
         payload,
         llmSettings: llmSettings.enabled ? llmSettings : undefined,
       }),
-    const { provider, model } = getLlmConnectionInfo(llmSettings);
-    const { apiUrl, model } = getModelApiConfig(llmSettings);
-    if (!apiUrl) return null;
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getCustomHeaders(llmSettings),
-    };
-    if (llmSettings.enabled && llmSettings.organizationId.trim())
-      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-
-    const requestBody = {
-      provider,
-      model,
-      messages: [
-        { role: "system", content: AGENT_PROMPTS[agent] },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-    };
-
-    const res = await fetch("/api/llm/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
