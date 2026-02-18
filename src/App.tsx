@@ -70,12 +70,7 @@ type AgentOutputs = {
 type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
-  apiKey: string;
   model: string;
-  endpoint: string;
-  organizationId: string;
-  azureApiVersion: string;
-  customHeaders: string;
 };
 type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
 type ExperienceFieldWidth = "full" | "half";
@@ -171,12 +166,7 @@ const initialResume: ResumeData = {
 const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
-  apiKey: "",
   model: "gpt-4o-mini",
-  endpoint: "",
-  organizationId: "",
-  azureApiVersion: "2024-10-21",
-  customHeaders: "",
 };
 type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
@@ -345,30 +335,19 @@ function App() {
   }, [companyFilter, skillFilter, experienceItems.length]);
 
   function getLlmConnectionInfo(settings: LlmSettings) {
-    const providerDefaults: Record<
-      LlmProvider,
-      { endpoint: string; model: string }
-    > = {
-      openai: {
-        endpoint: "https://api.openai.com/v1/chat/completions",
-        model: "gpt-4o-mini",
-      },
-      anthropic: {
-        endpoint: "https://api.anthropic.com/v1/messages",
-        model: "claude-3-5-sonnet-latest",
-      },
-      azureOpenai: { endpoint: "", model: "gpt-4o-mini" },
-      gemini: {
-        endpoint:
-          "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        model: "gemini-1.5-pro",
-      },
-      custom: { endpoint: "", model: "" },
+    const providerDefaults: Record<LlmProvider, { model: string }> = {
+      openai: { model: "gpt-4o-mini" },
+      anthropic: { model: "claude-3-5-sonnet-latest" },
+      azureOpenai: { model: "gpt-4o-mini" },
+      gemini: { model: "gemini-1.5-pro" },
+      custom: { model: "" },
     };
-    const providerDefault = providerDefaults[settings.provider];
-    const endpoint = settings.endpoint.trim() || providerDefault.endpoint;
-    const model = settings.model.trim() || providerDefault.model;
-    return { endpoint, model };
+    const provider = settings.enabled ? settings.provider : "openai";
+    const model =
+      settings.enabled && settings.model.trim()
+        ? settings.model.trim()
+        : providerDefaults[provider].model;
+    return { provider, model };
   }
 
   function saveLlmSettings() {
@@ -376,59 +355,21 @@ function App() {
     setSaveMessage("Model API integration settings saved.");
   }
 
-  function getCustomHeaders(settings: LlmSettings) {
-    const headers: Record<string, string> = {};
-    if (!settings.customHeaders.trim()) return headers;
-    settings.customHeaders.split("\n").forEach((line) => {
-      const [headerName, ...valueParts] = line.split(":");
-      if (!headerName || valueParts.length === 0) return;
-      headers[headerName.trim()] = valueParts.join(":").trim();
-    });
-    return headers;
-  }
-
-  function getModelApiConfig(settings: LlmSettings) {
-    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
-    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
-    const model =
-      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
-    const key = settings.apiKey.trim() || import.meta.env.VITE_LLM_API_KEY;
-    return { apiUrl, model, key };
-  }
-
   async function testModelApiConnectivity() {
     setConnectivityStatus("testing");
     setConnectivityErrorCode("");
 
     try {
-      const { apiUrl, model, key } = getModelApiConfig(llmSettings);
-      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...getCustomHeaders(llmSettings),
-      };
-      if (key) headers.Authorization = `Bearer ${key}`;
-      if (llmSettings.organizationId.trim()) {
-        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-      }
-
-      const requestBody: Record<string, unknown> = {
+      const { provider, model } = getLlmConnectionInfo(llmSettings);
+      const requestBody = {
+        provider,
         model,
         messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        temperature: 0,
       };
-      if (
-        llmSettings.provider === "azureOpenai" &&
-        llmSettings.azureApiVersion.trim()
-      ) {
-        requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-      }
 
-      const response = await fetch(apiUrl, {
+      const response = await fetch("/api/llm/chat", {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 
@@ -451,43 +392,26 @@ function App() {
     agent: AgentPromptId,
     payload: Record<string, unknown>,
   ) {
-    const { apiUrl, model, key } = getModelApiConfig(llmSettings);
-    if (!apiUrl) return null;
+    const { provider, model } = getLlmConnectionInfo(llmSettings);
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...getCustomHeaders(llmSettings),
-    };
-    if (key) headers.Authorization = `Bearer ${key}`;
-    if (llmSettings.enabled && llmSettings.organizationId.trim())
-      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
-
-    const requestBody: Record<string, unknown> = {
+    const requestBody = {
+      provider,
       model,
       messages: [
         { role: "system", content: AGENT_PROMPTS[agent] },
         { role: "user", content: JSON.stringify(payload) },
       ],
-      temperature: 0.2,
     };
 
-    if (
-      llmSettings.enabled &&
-      llmSettings.provider === "azureOpenai" &&
-      llmSettings.azureApiVersion.trim()
-    ) {
-      requestBody.apiVersion = llmSettings.azureApiVersion.trim();
-    }
-
-    const res = await fetch(apiUrl, {
+    const res = await fetch("/api/llm/chat", {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
+    const content = data.content || "{}";
     try {
       return JSON.parse(content);
     } catch {
@@ -1760,72 +1684,6 @@ function App() {
                       placeholder="Model name"
                     />
                   </label>
-                  <label>
-                    <span>API key / token</span>
-                    <input
-                      type="password"
-                      value={llmSettings.apiKey}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          apiKey: e.target.value,
-                        }))
-                      }
-                      placeholder="sk-..."
-                    />
-                  </label>
-                  <label>
-                    <span>Endpoint URL</span>
-                    <input
-                      value={llmSettings.endpoint}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          endpoint: e.target.value,
-                        }))
-                      }
-                      placeholder="https://..."
-                    />
-                  </label>
-                  <label>
-                    <span>Organization / project (optional)</span>
-                    <input
-                      value={llmSettings.organizationId}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          organizationId: e.target.value,
-                        }))
-                      }
-                      placeholder="org_..."
-                    />
-                  </label>
-                  <label>
-                    <span>Azure API version (optional)</span>
-                    <input
-                      value={llmSettings.azureApiVersion}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          azureApiVersion: e.target.value,
-                        }))
-                      }
-                      placeholder="2024-10-21"
-                    />
-                  </label>
-                  <label className="llm-full">
-                    <span>Custom headers (optional, one per line)</span>
-                    <textarea
-                      value={llmSettings.customHeaders}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          customHeaders: e.target.value,
-                        }))
-                      }
-                      placeholder="x-api-key: abc123"
-                    />
-                  </label>
                 </div>
                 <div className="llm-actions">
                   <button className="primary" onClick={saveLlmSettings}>
@@ -1856,24 +1714,12 @@ function App() {
                 <h3>Provider hints</h3>
                 <ul>
                   <li>
-                    <strong>ChatGPT / OpenAI:</strong> keep endpoint empty to
-                    use the default OpenAI chat completions URL.
+                    Provider credentials are loaded from secure server-side
+                    environment variables.
                   </li>
                   <li>
-                    <strong>Claude / Anthropic:</strong> set model to a Claude
-                    Messages API model and provide your Anthropic token.
-                  </li>
-                  <li>
-                    <strong>Copilot / Azure OpenAI:</strong> endpoint should be
-                    your Azure deployment chat completions URL.
-                  </li>
-                  <li>
-                    <strong>Gemini / Google AI:</strong> include a Gemini model
-                    and API key/token.
-                  </li>
-                  <li>
-                    <strong>Custom endpoint:</strong> enter endpoint/model and
-                    optional custom headers.
+                    Choose a provider and optional model override here, then use
+                    “Test model API ping” to verify connectivity.
                   </li>
                 </ul>
               </div>
