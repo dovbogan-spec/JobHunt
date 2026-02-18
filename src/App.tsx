@@ -67,15 +67,23 @@ type AgentOutputs = {
   draft: Record<string, unknown>;
   gap: Record<string, unknown>;
 };
+
+type CandidateMatrix = {
+  candidateName: string;
+  professionalTimeline: string[];
+  technicalSkills: string[];
+  industryDomains: string[];
+  methodologies: string[];
+  certifications: string[];
+  totalYearsExperience: string;
+  primaryExpertDomain: string;
+  education: string[];
+  parsedBullets: string[];
+};
 type LlmSettings = {
   enabled: boolean;
   provider: LlmProvider;
-  apiKey: string;
   model: string;
-  endpoint: string;
-  organizationId: string;
-  azureApiVersion: string;
-  customHeaders: string;
 };
 type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
 type ExperienceFieldWidth = "full" | "half";
@@ -171,12 +179,7 @@ const initialResume: ResumeData = {
 const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
-  apiKey: "",
   model: "gpt-4o-mini",
-  endpoint: "",
-  organizationId: "",
-  azureApiVersion: "2024-10-21",
-  customHeaders: "",
 };
 type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
@@ -265,7 +268,11 @@ function App() {
     const raw = localStorage.getItem(LLM_SETTINGS_STORAGE_KEY);
     if (!raw) return defaultLlmSettings;
     try {
-      return { ...defaultLlmSettings, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw) as Partial<LlmSettings> & {
+        apiKey?: string;
+      };
+      const { apiKey: _legacyApiKey, ...safeSettings } = parsed;
+      return { ...defaultLlmSettings, ...safeSettings };
     } catch {
       return defaultLlmSettings;
     }
@@ -360,9 +367,44 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
+  function getLlmConnectionInfo(settings: LlmSettings) {
+    const providerDefaults: Record<LlmProvider, { model: string }> = {
+      openai: { model: "gpt-4o-mini" },
+      anthropic: { model: "claude-3-5-sonnet-latest" },
+      azureOpenai: { model: "gpt-4o-mini" },
+      gemini: { model: "gemini-1.5-pro" },
+      custom: { model: "" },
+    };
+    const provider = settings.enabled ? settings.provider : "openai";
+    const model =
+      settings.enabled && settings.model.trim()
+        ? settings.model.trim()
+        : providerDefaults[provider].model;
+    return { provider, model };
+  }
+
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
+  }
+
+  function getCustomHeaders(settings: LlmSettings) {
+    const headers: Record<string, string> = {};
+    if (!settings.customHeaders.trim()) return headers;
+    settings.customHeaders.split("\n").forEach((line) => {
+      const [headerName, ...valueParts] = line.split(":");
+      if (!headerName || valueParts.length === 0) return;
+      headers[headerName.trim()] = valueParts.join(":").trim();
+    });
+    return headers;
+  }
+
+  function getModelApiConfig(settings: LlmSettings) {
+    const configured = settings.enabled ? getLlmConnectionInfo(settings) : null;
+    const apiUrl = configured?.endpoint || import.meta.env.VITE_LLM_API_URL;
+    const model =
+      configured?.model || import.meta.env.VITE_LLM_MODEL || "gpt-4o-mini";
+    return { apiUrl, model };
   }
 
   async function testModelApiConnectivity() {
@@ -374,6 +416,29 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ llmSettings: llmSettings.enabled ? llmSettings : undefined }),
+      const { provider, model } = getLlmConnectionInfo(llmSettings);
+      const requestBody = {
+        provider,
+      const { apiUrl, model } = getModelApiConfig(llmSettings);
+      if (!apiUrl) throw new Error("NO_ENDPOINT_CONFIGURED");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...getCustomHeaders(llmSettings),
+      };
+      if (llmSettings.organizationId.trim()) {
+        headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
+      }
+
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages: [{ role: "user", content: "ping" }],
+      };
+
+      const response = await fetch("/api/llm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -403,6 +468,30 @@ function App() {
         payload,
         llmSettings: llmSettings.enabled ? llmSettings : undefined,
       }),
+    const { provider, model } = getLlmConnectionInfo(llmSettings);
+    const { apiUrl, model } = getModelApiConfig(llmSettings);
+    if (!apiUrl) return null;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...getCustomHeaders(llmSettings),
+    };
+    if (llmSettings.enabled && llmSettings.organizationId.trim())
+      headers["OpenAI-Organization"] = llmSettings.organizationId.trim();
+
+    const requestBody = {
+      provider,
+      model,
+      messages: [
+        { role: "system", content: AGENT_PROMPTS[agent] },
+        { role: "user", content: JSON.stringify(payload) },
+      ],
+    };
+
+    const res = await fetch("/api/llm/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
     });
 
     if (!res.ok) throw new Error(`Agent ${agent} failed`);
@@ -561,13 +650,54 @@ function App() {
 
   async function runAgent3Parser(documentText: string) {
     const llm = await callModel("experienceParser", { documentText });
-    if (llm) return llm;
-    return {
+    const fallback: CandidateMatrix = {
+      candidateName: extractPersonInfo(documentText).fullName || "Unknown",
+      professionalTimeline: [],
       parsedBullets: parseExperience(documentText).map((x) => x.text),
       technicalSkills: SKILL_KEYWORDS.filter((skill) =>
         documentText.toLowerCase().includes(skill),
       ),
+      industryDomains: [],
+      methodologies: [],
+      certifications: [],
+      totalYearsExperience: "unknown",
+      primaryExpertDomain: "unknown",
+      education: [],
     };
+
+    if (!llm || typeof llm !== "object") return fallback;
+
+    const candidate = llm as Record<string, unknown>;
+    return {
+      candidateName: String(candidate.candidateName || fallback.candidateName),
+      professionalTimeline: Array.isArray(candidate.professionalTimeline)
+        ? candidate.professionalTimeline.map((item) => String(item)).filter(Boolean)
+        : fallback.professionalTimeline,
+      technicalSkills: Array.isArray(candidate.technicalSkills)
+        ? candidate.technicalSkills.map((item) => String(item)).filter(Boolean)
+        : fallback.technicalSkills,
+      industryDomains: Array.isArray(candidate.industryDomains)
+        ? candidate.industryDomains.map((item) => String(item)).filter(Boolean)
+        : fallback.industryDomains,
+      methodologies: Array.isArray(candidate.methodologies)
+        ? candidate.methodologies.map((item) => String(item)).filter(Boolean)
+        : fallback.methodologies,
+      certifications: Array.isArray(candidate.certifications)
+        ? candidate.certifications.map((item) => String(item)).filter(Boolean)
+        : fallback.certifications,
+      totalYearsExperience: String(
+        candidate.totalYearsExperience || fallback.totalYearsExperience,
+      ),
+      primaryExpertDomain: String(
+        candidate.primaryExpertDomain || fallback.primaryExpertDomain,
+      ),
+      education: Array.isArray(candidate.education)
+        ? candidate.education.map((item) => String(item)).filter(Boolean)
+        : fallback.education,
+      parsedBullets: Array.isArray(candidate.parsedBullets)
+        ? candidate.parsedBullets.map((item) => String(item)).filter(Boolean)
+        : fallback.parsedBullets,
+    } satisfies CandidateMatrix;
   }
 
   async function runAgent4Matcher(
@@ -1016,7 +1146,38 @@ function App() {
         throw new Error(payload.error || "Could not extract file text");
       }
 
-      setExperienceDoc(payload.extracted?.text || "");
+      const extractedText = payload.extracted?.text || "";
+      setExperienceDoc(extractedText);
+
+      const info = extractPersonInfo(extractedText);
+      setResume((prev) => ({
+        ...prev,
+        fullName: info.fullName || prev.fullName,
+        email: info.email || prev.email,
+        phone: info.phone || prev.phone,
+      }));
+
+      const candidate = await runAgent3Parser(extractedText);
+      const parsedBullets = candidate.parsedBullets.length
+        ? candidate.parsedBullets
+        : parseExperience(extractedText).map((item) => item.text);
+
+      const parsedItems: ExperienceItem[] = parsedBullets.map((line) => ({
+        id: uuidv4(),
+        text: line,
+        company:
+          line.match(/at\s+([A-Z][A-Za-z0-9&\s-]+)/)?.[1]?.trim() || "General",
+        skillTags: SKILL_KEYWORDS.filter((skill) =>
+          line.toLowerCase().includes(skill),
+        ).slice(0, 8),
+        selected: true,
+      }));
+      setExperienceItems(
+        parsedItems.map((item) => ({
+          ...item,
+          skillTags: item.skillTags.length ? item.skillTags : ["general"],
+        })),
+      );
     } catch {
       setChatOpen(true);
       setChatMessages((prev) => [
@@ -1645,8 +1806,9 @@ function App() {
                   </label>
                 </div>
                 <p className="llm-subtitle">
-                  Configure model API settings for your provider. These values are
-                  stored locally on this device.
+                  Configure provider routing only. API credentials are managed
+                  server-side via Vercel environment variables/secrets and are
+                  never stored in browser localStorage.
                 </p>
                 <div className="llm-grid">
                   <label>
@@ -1680,20 +1842,6 @@ function App() {
                         }))
                       }
                       placeholder="Model name"
-                    />
-                  </label>
-                  <label>
-                    <span>API key / token</span>
-                    <input
-                      type="password"
-                      value={llmSettings.apiKey}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          apiKey: e.target.value,
-                        }))
-                      }
-                      placeholder="sk-..."
                     />
                   </label>
                   <label>
@@ -1778,12 +1926,15 @@ function App() {
                 <h3>Provider hints</h3>
                 <ul>
                   <li>
+                    Provider credentials are loaded from secure server-side
+                    environment variables.
                     <strong>ChatGPT / OpenAI:</strong> keep endpoint empty to
                     use the default OpenAI chat completions URL.
                   </li>
                   <li>
                     <strong>Claude / Anthropic:</strong> set model to a Claude
-                    Messages API model and provide your Anthropic token.
+                    Messages API model; keep credentials in server-side env
+                    vars only.
                   </li>
                   <li>
                     <strong>Copilot / Azure OpenAI:</strong> endpoint should be
@@ -1791,11 +1942,11 @@ function App() {
                   </li>
                   <li>
                     <strong>Gemini / Google AI:</strong> include a Gemini model
-                    and API key/token.
+                    and configure credentials on the server (not in-browser).
                   </li>
                   <li>
-                    <strong>Custom endpoint:</strong> enter endpoint/model and
-                    optional custom headers.
+                    Choose a provider and optional model override here, then use
+                    “Test model API ping” to verify connectivity.
                   </li>
                 </ul>
               </div>
