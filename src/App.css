@@ -537,10 +537,11 @@ textarea {
   border: 1px solid #d2e9da;
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
   padding: 0.9rem;
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0.65rem;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .section-manager-header {
@@ -841,6 +842,78 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+/* Clickable sections in CV preview */
+.preview-section-clickable {
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease;
+  padding: 0.25rem 0.35rem;
+  margin: -0.25rem -0.35rem;
+}
+
+.preview-section-clickable:hover {
+  background: rgba(47, 133, 90, 0.06);
+}
+
+.preview-section-clickable:focus-visible {
+  outline: 2px solid #2f855a;
+  outline-offset: 2px;
+}
+
+.preview-section-pencil {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  vertical-align: middle;
+}
+
+.preview-section-clickable:hover .preview-section-pencil {
+  opacity: 0.7;
+}
+
+/* Section label inline edit input */
+.section-label-edit-input {
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.4rem;
+  border: 1px solid #4a9d70;
+  width: 100%;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.2);
+}
+
+/* Pencil icon next to section name in focused editor header */
+.section-label-pencil {
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  min-height: unset;
+  min-width: unset;
+  line-height: 1;
+  vertical-align: middle;
+  opacity: 0.6;
+}
+
+.section-label-pencil:hover {
+  opacity: 1;
+}
+
+/* Section row label as clickable button */
+.section-row-label[role="button"] {
+  cursor: pointer;
+}
+
+.section-row-label[role="button"]:hover {
+  color: #2f855a;
+  text-decoration: underline;
 }
 
 .editor-actions-footer {

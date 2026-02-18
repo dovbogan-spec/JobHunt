@@ -275,6 +275,7 @@ function App() {
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
   const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>([
     { id: "pd-fullname", label: "Full Name", value: "" },
     { id: "pd-title", label: "Title", value: "" },
@@ -994,6 +995,8 @@ function App() {
       ...prev,
       [id]: [{ id: uuidv4(), title: "", content: "" }],
     }));
+    openSectionEditor(id);
+    setEditingLabelId(id);
   }
   function openSectionEditor(id: string) {
     if (!editMode) {
@@ -1685,13 +1688,33 @@ function App() {
                           <span className="section-drag-handle" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
                           <button
                             className="section-pencil-btn"
-                            onClick={() => openSectionEditor(section.id)}
-                            title={`Edit ${section.label}`}
-                            aria-label={`Edit ${section.label} section`}
+                            onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}
+                            title={`Rename ${section.label}`}
+                            aria-label={`Rename ${section.label} section`}
                           >
                             ✏️
                           </button>
-                          <span className="section-row-label">{section.label || "Untitled section"}</span>
+                          {editingLabelId === section.id && !editMode ? (
+                            <input
+                              className="section-label-edit-input"
+                              value={section.label}
+                              autoFocus
+                              onChange={(e) => updateSectionLabel(section.id, e.target.value)}
+                              onBlur={() => setEditingLabelId(null)}
+                              onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span
+                              className="section-row-label"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openSectionEditor(section.id)}
+                              onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                            >
+                              {section.label || "Untitled section"}
+                            </span>
+                          )}
                           <button
                             className="section-visibility-btn"
                             onClick={() => toggleSection(section.id)}
@@ -1703,81 +1726,33 @@ function App() {
                         </div>
                       ))}
                     </div>
-                  </aside>
-
-                <main
-                  className={`resume-preview ${template.toLowerCase()} ${previewFullscreen ? "is-fullscreen" : ""}`}
-                  ref={previewRef}
-                >
-                  <div className="preview-toolbar">
-                    <button
-                      className="round-icon-button"
-                      onClick={() =>
-                        setZoom((prev) => Math.max(0.7, prev - 0.1))
-                      }
-                    >
-                      −
-                    </button>
-                    <span className="toolbar-zoom-value">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <button
-                      className="round-icon-button"
-                      onClick={() =>
-                        setZoom((prev) => Math.min(1.5, prev + 0.1))
-                      }
-                    >
-                      +
-                    </button>
-                    <button
-                      className="round-icon-button toolbar-fullscreen"
-                      onClick={togglePreviewFullscreen}
-                    >
-                      {previewFullscreen ? "⤢" : "⛶"}
-                    </button>
-                  </div>
-
-                  {sectionPickerOpen && (
-                    <div className="section-picker">
-                      <div className="section-picker-header top-section-row">
-                        <strong>Section controls</strong>
-                        <button
-                          onClick={() =>
-                            setSectionListCollapsed((prev) => !prev)
-                          }
-                        >
-                          {sectionListCollapsed
-                            ? "⬇️ Expand List"
-                            : "⬆️ Collapse List"}
-                        </button>
-                      </div>
-                      {!sectionListCollapsed &&
-                        sections.map((section) => (
-                          <div
-                            key={section.id}
-                            className={`section-picker-row ${section.id === activeSectionId ? "active" : ""}`}
-                          >
-                            <button onClick={() => toggleSection(section.id)}>
-                              {section.visible ? "👁️ Hide" : "👁️ Show"}
-                            </button>
-                            <input
-                              value={section.label}
-                              onFocus={() => setActiveSectionId(section.id)}
-                              onChange={(e) =>
-                                updateSectionLabel(section.id, e.target.value)
-                              }
-                            />
-                          </div>
-                        ))}
-                    </div>
-                  )}
-
                   {editMode && activeSection && (
                     <section className="focused-editor-card">
                       <header className="focused-editor-header">
                         <div>
                           <p className="focused-editor-kicker">Editing section</p>
-                          <h4>{activeSection.label}</h4>
+                          {editingLabelId === activeSectionId ? (
+                            <input
+                              className="section-label-edit-input"
+                              value={activeSection.label}
+                              autoFocus
+                              onChange={(e) => updateSectionLabel(activeSectionId, e.target.value)}
+                              onBlur={() => setEditingLabelId(null)}
+                              onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
+                            />
+                          ) : (
+                            <h4>
+                              {activeSection.label}
+                              <button
+                                className="section-label-pencil"
+                                onClick={() => setEditingLabelId(activeSectionId)}
+                                title="Rename section"
+                                aria-label="Rename section"
+                              >
+                                ✏️
+                              </button>
+                            </h4>
+                          )}
                         </div>
                         <div className="focused-editor-actions">
                           <button onClick={() => updateActiveSectionVisibility(false)}>Hide</button>
@@ -1840,7 +1815,7 @@ function App() {
                             onInput={(e) =>
                               setEditorDraft((prev) => ({
                                 ...prev,
-                                profile: (e.target as HTMLDivElement).innerHTML,
+                                profile: (e.target as HTMLDivElement).innerText,
                               }))
                             }
                             dangerouslySetInnerHTML={{ __html: editorDraft.profile || "<p>Write your profile…</p>" }}
@@ -1851,95 +1826,53 @@ function App() {
                       {/* Experience */}
                       {activeSectionId === "experience" && (
                         <div className="structured-editor-list">
-                          <button className="small-action add-entry-top-btn" onClick={addExperienceEntry}>
+                          <button
+                            className="small-action add-entry-top-btn"
+                            onClick={() =>
+                              setEditorDraft((prev) => ({
+                                ...prev,
+                                selectedExperience: [
+                                  ...prev.selectedExperience,
+                                  { id: uuidv4(), text: "", company: "", skillTags: [], selected: true },
+                                ],
+                              }))
+                            }
+                          >
                             + Add experience
                           </button>
-                          {experienceEntries.map((entry) => (
-                            <div key={entry.id} className="entry-box">
-                              <div className="entry-box-header">
-                                <span className="entry-box-type">Experience</span>
-                                <button className="remove-entry-btn" onClick={() => removeExperienceEntry(entry.id)} title="Remove">✕</button>
-                              </div>
-                              <input
-                                value={entry.title}
-                                placeholder="Title (e.g. Software Engineer)"
-                                onChange={(e) => updateExperienceEntry(entry.id, "title", e.target.value)}
+                          {editorDraft.selectedExperience.map((item, index) => (
+                            <div className="structured-editor-row" key={item.id}>
+                              <textarea
+                                className="manual-editor-box"
+                                value={toPlainText(item.text)}
+                                rows={3}
+                                placeholder="Experience bullet point…"
+                                onChange={(e) =>
+                                  setEditorDraft((prev) => ({
+                                    ...prev,
+                                    selectedExperience: prev.selectedExperience.map((si, i) =>
+                                      i === index ? { ...si, text: e.target.value } : si,
+                                    ),
+                                  }))
+                                }
                               />
-                              <input
-                                value={entry.subTitle}
-                                placeholder="Sub Title (e.g. Company Name)"
-                                onChange={(e) => updateExperienceEntry(entry.id, "subTitle", e.target.value)}
-                              />
-                              <div className="date-mode-row">
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={`dateMode-${entry.id}`}
-                                    value="yearMonth"
-                                    checked={entry.dateMode === "yearMonth"}
-                                    onChange={() => updateExperienceEntry(entry.id, "dateMode", "yearMonth")}
-                                  />
-                                  {" "}Year &amp; Month
-                                </label>
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={`dateMode-${entry.id}`}
-                                    value="yearOnly"
-                                    checked={entry.dateMode === "yearOnly"}
-                                    onChange={() => updateExperienceEntry(entry.id, "dateMode", "yearOnly")}
-                                  />
-                                  {" "}Year only
-                                </label>
-                              </div>
-                              <div className="date-fields-row">
-                                {entry.dateMode === "yearOnly" ? (
-                                  <input
-                                    type="number"
-                                    min="1950"
-                                    max="2100"
-                                    placeholder="Start year"
-                                    value={entry.startDate}
-                                    onChange={(e) => updateExperienceEntry(entry.id, "startDate", e.target.value)}
-                                  />
-                                ) : (
-                                  <input
-                                    type="month"
-                                    placeholder="Start date"
-                                    value={entry.startDate}
-                                    onChange={(e) => updateExperienceEntry(entry.id, "startDate", e.target.value)}
-                                  />
-                                )}
-                                {entry.isCurrent ? (
-                                  <span className="current-label">Current</span>
-                                ) : entry.dateMode === "yearOnly" ? (
-                                  <input
-                                    type="number"
-                                    min="1950"
-                                    max="2100"
-                                    placeholder="End year"
-                                    value={entry.endDate}
-                                    onChange={(e) => updateExperienceEntry(entry.id, "endDate", e.target.value)}
-                                  />
-                                ) : (
-                                  <input
-                                    type="month"
-                                    placeholder="End date"
-                                    value={entry.endDate}
-                                    onChange={(e) => updateExperienceEntry(entry.id, "endDate", e.target.value)}
-                                  />
-                                )}
-                                <label className="current-checkbox">
-                                  <input
-                                    type="checkbox"
-                                    checked={entry.isCurrent}
-                                    onChange={(e) => updateExperienceEntry(entry.id, "isCurrent", e.target.checked)}
-                                  />
-                                  {" "}Current
-                                </label>
-                              </div>
+                              <button
+                                className="remove-field-btn"
+                                onClick={() =>
+                                  setEditorDraft((prev) => ({
+                                    ...prev,
+                                    selectedExperience: prev.selectedExperience.filter((_, i) => i !== index),
+                                  }))
+                                }
+                                title="Remove"
+                              >
+                                −
+                              </button>
                             </div>
                           ))}
+                          {editorDraft.selectedExperience.length === 0 && (
+                            <p className="editor-empty-state">No experience entries yet.</p>
+                          )}
                         </div>
                       )}
 
@@ -1976,83 +1909,33 @@ function App() {
                       {/* Education */}
                       {activeSectionId === "education" && (
                         <div className="structured-editor-list">
-                          <button className="small-action add-entry-top-btn" onClick={addEducationEntry}>
-                            + Add education
-                          </button>
-                          {educationEntries.map((entry) => (
-                            <div key={entry.id} className="entry-box">
-                              <div className="entry-box-header">
-                                <span className="entry-box-type">Education</span>
-                                <button className="remove-entry-btn" onClick={() => removeEducationEntry(entry.id)} title="Remove">✕</button>
-                              </div>
+                          {editorDraft.education.map((item, index) => (
+                            <div className="structured-editor-row" key={`education-${index}`}>
                               <input
-                                value={entry.institution}
-                                placeholder="Institution"
-                                onChange={(e) => updateEducationEntry(entry.id, "institution", e.target.value)}
+                                value={item}
+                                placeholder="e.g. BSc Computer Science, University Name"
+                                onChange={(e) => updateListField("education", index, e.target.value)}
                               />
-                              <input
-                                value={entry.degree}
-                                placeholder="Degree / Field of study"
-                                onChange={(e) => updateEducationEntry(entry.id, "degree", e.target.value)}
-                              />
-                              <label className="field-label-row">
-                                <span>Language level</span>
-                                <select
-                                  value={entry.languageLevel}
-                                  onChange={(e) => updateEducationEntry(entry.id, "languageLevel", e.target.value)}
-                                >
-                                  <option value="">— Select —</option>
-                                  <option value="A1">A1 – Beginner</option>
-                                  <option value="A2">A2 – Elementary</option>
-                                  <option value="B1">B1 – Intermediate</option>
-                                  <option value="B2">B2 – Upper Intermediate</option>
-                                  <option value="C1">C1 – Advanced</option>
-                                  <option value="C2">C2 – Proficient</option>
-                                  <option value="Native">Native</option>
-                                </select>
-                              </label>
-                              <div className="date-mode-row">
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={`eduDateMode-${entry.id}`}
-                                    value="yearMonth"
-                                    checked={entry.dateMode === "yearMonth"}
-                                    onChange={() => updateEducationEntry(entry.id, "dateMode", "yearMonth")}
-                                  />
-                                  {" "}Year &amp; Month
-                                </label>
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={`eduDateMode-${entry.id}`}
-                                    value="yearOnly"
-                                    checked={entry.dateMode === "yearOnly"}
-                                    onChange={() => updateEducationEntry(entry.id, "dateMode", "yearOnly")}
-                                  />
-                                  {" "}Year only
-                                </label>
-                              </div>
-                              <div className="date-fields-row">
-                                {entry.dateMode === "yearOnly" ? (
-                                  <input type="number" min="1950" max="2100" placeholder="Start year" value={entry.startDate} onChange={(e) => updateEducationEntry(entry.id, "startDate", e.target.value)} />
-                                ) : (
-                                  <input type="month" placeholder="Start date" value={entry.startDate} onChange={(e) => updateEducationEntry(entry.id, "startDate", e.target.value)} />
-                                )}
-                                {entry.isCurrent ? (
-                                  <span className="current-label">Current</span>
-                                ) : entry.dateMode === "yearOnly" ? (
-                                  <input type="number" min="1950" max="2100" placeholder="End year" value={entry.endDate} onChange={(e) => updateEducationEntry(entry.id, "endDate", e.target.value)} />
-                                ) : (
-                                  <input type="month" placeholder="End date" value={entry.endDate} onChange={(e) => updateEducationEntry(entry.id, "endDate", e.target.value)} />
-                                )}
-                                <label className="current-checkbox">
-                                  <input type="checkbox" checked={entry.isCurrent} onChange={(e) => updateEducationEntry(entry.id, "isCurrent", e.target.checked)} />
-                                  {" "}Current
-                                </label>
-                              </div>
+                              <button
+                                className="remove-field-btn"
+                                onClick={() =>
+                                  setEditorDraft((prev) => ({
+                                    ...prev,
+                                    education: prev.education.filter((_, i) => i !== index),
+                                  }))
+                                }
+                                title="Remove"
+                              >
+                                −
+                              </button>
                             </div>
                           ))}
+                          <button
+                            className="small-action"
+                            onClick={() => appendListField("education")}
+                          >
+                            + Add item
+                          </button>
                         </div>
                       )}
 
@@ -2141,6 +2024,76 @@ function App() {
                       </footer>
                     </section>
                   )}
+                  </aside>
+
+                <main
+                  className={`resume-preview ${template.toLowerCase()} ${previewFullscreen ? "is-fullscreen" : ""}`}
+                  ref={previewRef}
+                >
+                  <div className="preview-toolbar">
+                    <button
+                      className="round-icon-button"
+                      onClick={() =>
+                        setZoom((prev) => Math.max(0.7, prev - 0.1))
+                      }
+                    >
+                      −
+                    </button>
+                    <span className="toolbar-zoom-value">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      className="round-icon-button"
+                      onClick={() =>
+                        setZoom((prev) => Math.min(1.5, prev + 0.1))
+                      }
+                    >
+                      +
+                    </button>
+                    <button
+                      className="round-icon-button toolbar-fullscreen"
+                      onClick={togglePreviewFullscreen}
+                    >
+                      {previewFullscreen ? "⤢" : "⛶"}
+                    </button>
+                  </div>
+
+                  {sectionPickerOpen && (
+                    <div className="section-picker">
+                      <div className="section-picker-header top-section-row">
+                        <strong>Section controls</strong>
+                        <button
+                          onClick={() =>
+                            setSectionListCollapsed((prev) => !prev)
+                          }
+                        >
+                          {sectionListCollapsed
+                            ? "⬇️ Expand List"
+                            : "⬆️ Collapse List"}
+                        </button>
+                      </div>
+                      {!sectionListCollapsed &&
+                        sections.map((section) => (
+                          <div
+                            key={section.id}
+                            className={`section-picker-row ${section.id === activeSectionId ? "active" : ""}`}
+                          >
+                            <button onClick={() => toggleSection(section.id)}>
+                              {section.visible ? "👁️ Hide" : "👁️ Show"}
+                            </button>
+                            <input
+                              value={section.label}
+                              onFocus={() => setActiveSectionId(section.id)}
+                              onChange={(e) =>
+                                updateSectionLabel(section.id, e.target.value)
+                              }
+                            />
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+
 
                   <div
                     className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
@@ -2154,314 +2107,158 @@ function App() {
                         .map((section) => {
                           if (section.id === "header") {
                             return (
-                              <div key={section.id}>
-                                <h2>{previewResume.fullName || "Your Name"}</h2>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h2>
+                                  {previewResume.fullName || "Your Name"}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h2>
                                 <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
                                 <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
-                                {editMode && activeSectionId === section.id ? (
-                                  <div className="manual-editor-grid">
-                                    <input
-                                      value={editorDraft.fullName}
-                                      placeholder="Full name"
-                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, fullName: e.target.value }))}
-                                    />
-                                    <input
-                                      value={editorDraft.primaryTitle}
-                                      placeholder="Primary title"
-                                      onChange={(e) => setEditorDraft((prev) => ({ ...prev, primaryTitle: e.target.value }))}
-                                    />
-                                  </div>
-                                ) : (
-                                  <>
-                                    <h2>{previewResume.fullName || "Your Name"}</h2>
-                                    <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
-                                    <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
-                                  </>
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "profile") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 <p className="preview-text">{previewResume.profile}</p>
-                                {editMode && activeSectionId === section.id ? (
-                                  <textarea
-                                    className="manual-editor-box"
-                                    value={editorDraft.profile}
-                                    placeholder="Write a concise 2-4 line profile."
-                                    onChange={(e) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        profile: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  <p className="preview-text">{previewResume.profile}</p>
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "experience") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 {previewResume.selectedExperience.map((item) => (
                                   <div className="bullet-row" key={item.id}>
                                     <p className="preview-bullet">• {toPlainText(item.text)}</p>
                                   </div>
                                 ))}
-                                {editMode && activeSectionId === section.id
-                                  ? experienceEditor.map((item) => (
-                                      <div className="experience-main-box" key={item.id}>
-                                        <div className="experience-box-toolbar">
-                                          <span>Editing toolbar</span>
-                                          <button
-                                            className="small-action"
-                                            onClick={() =>
-                                              setOpenFieldMenuFor((prev) =>
-                                                prev === item.id ? null : item.id,
-                                              )
-                                            }
-                                          >
-                                            +
-                                          </button>
-                                        </div>
-                                        {openFieldMenuFor === item.id && (
-                                          <div className="field-add-menu">
-                                            {(["text", "date", "title", "subTitle"] as ExperienceFieldType[]).map((type) => (
-                                              <button
-                                                key={type}
-                                                onClick={() => addExperienceField(item.id, type)}
-                                              >
-                                                {type === "subTitle" ? "sub title" : type}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                        <div className={`experience-field-grid ${draggingField ? "drag-active" : ""}`}>
-                                          {item.fields.map((field, fieldIndex) => (
-                                            <div
-                                              key={field.id}
-                                              className={`experience-sub-box ${field.width === "half" ? "half" : "full"}`}
-                                            >
-                                              <div className="sub-box-drop-zones">
-                                                {(["top", "bottom", "left", "right"] as const).map((zone) => (
-                                                  <button
-                                                    key={zone}
-                                                    className={`drop-zone ${zone} ${dropIndicator?.itemId === item.id && dropIndicator.fieldId === field.id && dropIndicator.position === zone ? "active" : ""}`}
-                                                    onDragOver={(e) => {
-                                                      e.preventDefault();
-                                                      setDropIndicator({ itemId: item.id, fieldId: field.id, position: zone });
-                                                    }}
-                                                    onDragEnter={(e) => {
-                                                      e.preventDefault();
-                                                      setDropIndicator({ itemId: item.id, fieldId: field.id, position: zone });
-                                                    }}
-                                                    onDragLeave={() => {
-                                                      setDropIndicator((prev) =>
-                                                        prev?.itemId === item.id && prev.fieldId === field.id && prev.position === zone
-                                                          ? null
-                                                          : prev,
-                                                      );
-                                                    }}
-                                                    onDrop={(e) => {
-                                                      e.preventDefault();
-                                                      moveExperienceField(item.id, field.id, zone);
-                                                    }}
-                                                    aria-label={`Drop ${zone}`}
-                                                  />
-                                                ))}
-                                              </div>
-                                              <div className="sub-box-header">
-                                                <label className="sub-box-label">{field.type === "subTitle" ? "Sub title" : field.type}</label>
-                                                <div className="field-actions">
-                                                  <button
-                                                    type="button"
-                                                    className="drag-handle"
-                                                    draggable
-                                                    onDragStart={(e) => {
-                                                      e.stopPropagation();
-                                                      setDraggingField({
-                                                        itemId: item.id,
-                                                        fieldId: field.id,
-                                                      });
-                                                      setDropIndicator(null);
-                                                      e.dataTransfer.effectAllowed = "move";
-                                                    }}
-                                                    onDragEnd={() => {
-                                                      setDraggingField(null);
-                                                      setDropIndicator(null);
-                                                    }}
-                                                    aria-label="Drag to reorder field"
-                                                    title="Drag to reorder"
-                                                  >
-                                                    ⋮⋮
-                                                  </button>
-                                                  <div className="field-reorder-buttons" role="group" aria-label="Reorder field">
-                                                    <button
-                                                      type="button"
-                                                      className="reorder-btn"
-                                                      onClick={() => moveExperienceFieldByOffset(item.id, field.id, "up")}
-                                                      disabled={fieldIndex === 0}
-                                                      aria-label="Move field up"
-                                                    >
-                                                      ↑
-                                                    </button>
-                                                    <button
-                                                      type="button"
-                                                      className="reorder-btn"
-                                                      onClick={() => moveExperienceFieldByOffset(item.id, field.id, "down")}
-                                                      disabled={fieldIndex === item.fields.length - 1}
-                                                      aria-label="Move field down"
-                                                    >
-                                                      ↓
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              {field.type === "date" ? (
-                                                <input
-                                                  type="date"
-                                                  className="manual-editor-box"
-                                                  value={field.value}
-                                                  onDragStart={(e) => e.preventDefault()}
-                                                  onChange={(e) =>
-                                                    updateExperienceField(item.id, field.id, e.target.value)
-                                                  }
-                                                />
-                                              ) : (
-                                                <textarea
-                                                  className="manual-editor-box"
-                                                  value={field.value}
-                                                  rows={field.type === "text" ? 4 : 2}
-                                                  placeholder={`Add ${field.type === "subTitle" ? "sub title" : field.type}`}
-                                                  onDragStart={(e) => e.preventDefault()}
-                                                  onChange={(e) =>
-                                                    updateExperienceField(item.id, field.id, e.target.value)
-                                                  }
-                                                />
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))
-                                  : previewResume.selectedExperience.map((item) => (
-                                      <div className="bullet-row" key={item.id}>
-                                        <p className="preview-bullet">• {toPlainText(item.text)}</p>
-                                      </div>
-                                    ))}
-                                {editMode && (
-                                  <button
-                                    className="small-action"
-                                    onClick={addExperienceMainBox}
-                                  >
-                                    + Add main box
-                                  </button>
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "education") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 {previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)}
-                                {editMode && activeSectionId === section.id ? (
-                                  <textarea
-                                    className="manual-editor-box"
-                                    value={editorDraft.education.join("\n")}
-                                    placeholder="One education entry per line"
-                                    onChange={(e) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        education: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "skills") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
-                                {editMode && activeSectionId === section.id ? (
-                                  <textarea
-                                    className="manual-editor-box"
-                                    value={editorDraft.keySkills.join("\n")}
-                                    placeholder="One skill per line"
-                                    onChange={(e) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        keySkills: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "interests") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 <p className="preview-text">{previewResume.interests.join(" · ")}</p>
-                                {editMode && activeSectionId === section.id ? (
-                                  <textarea
-                                    className="manual-editor-box"
-                                    value={editorDraft.interests.join("\n")}
-                                    placeholder="One interest per line"
-                                    onChange={(e) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        interests: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  <p className="preview-text">{previewResume.interests.join(" · ")}</p>
-                                )}
                               </div>
                             );
                           }
                           if (section.id === "languages") {
                             return (
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
+                              <div
+                                key={section.id}
+                                className="preview-section-clickable"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                                title="Click to edit"
+                              >
+                                <h4>
+                                  {section.label}
+                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                                </h4>
                                 <p className="preview-text">{previewResume.languages.join(" · ")}</p>
-                                {editMode && activeSectionId === section.id ? (
-                                  <textarea
-                                    className="manual-editor-box"
-                                    value={editorDraft.languages.join("\n")}
-                                    placeholder="One language per line"
-                                    onChange={(e) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        languages: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
-                                      }))
-                                    }
-                                  />
-                                ) : (
-                                  <p className="preview-text">{previewResume.languages.join(" · ")}</p>
-                                )}
                               </div>
                             );
                           }
                           // Custom sections
                           const customEntries = customSectionContents[section.id] || [];
                           return (
-                            <div key={section.id}>
-                              <h4>{section.label}</h4>
+                            <div
+                              key={section.id}
+                              className="preview-section-clickable"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openSectionEditor(section.id)}
+                              onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                              title="Click to edit"
+                            >
+                              <h4>
+                                {section.label}
+                                <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
+                              </h4>
                               {customEntries.map((entry) => (
                                 <div key={entry.id}>
                                   {entry.title && <p className="preview-text" style={{ fontWeight: 700, marginBottom: "0.2rem" }}>{entry.title}</p>}
@@ -2475,7 +2272,6 @@ function App() {
                   </div>
 
                   <div className="preview-bottom-actions">
-                    {!editMode && <button onClick={startEditingResume}>Edit</button>}
                     <button
                       onClick={() => setSectionPickerOpen((prev) => !prev)}
                     >
