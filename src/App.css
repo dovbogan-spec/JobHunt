@@ -545,36 +545,58 @@ textarea {
 
 .section-manager-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 0.45rem;
 }
 
 .section-manager-header h4 {
   margin: 0;
+  flex: 1;
 }
 
-.section-manager-header span {
-  font-size: 0.8rem;
-  color: #486b5b;
-  font-weight: 600;
+.add-section-btn {
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 1.3rem;
+  line-height: 1;
+  font-weight: 700;
+  background: #2f855a;
+  color: #fff;
+  border-color: #2f855a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.add-section-btn:hover {
+  background: #22693f;
 }
 
 .section-manager-list {
   overflow: auto;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
   align-content: start;
 }
 
 .section-manager-row {
   border: 1px solid #cde2d6;
   border-radius: 0.75rem;
-  padding: 0.5rem;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   background: #f8fcf9;
+  cursor: grab;
+  transition: all 0.15s ease;
+}
+
+.section-manager-row:active {
+  cursor: grabbing;
 }
 
 .section-manager-row.active {
@@ -584,16 +606,72 @@ textarea {
 }
 
 .section-manager-row.is-hidden {
-  opacity: 0.78;
+  opacity: 0.6;
+}
+
+.section-manager-row.drag-over {
+  border-color: #4a9d70;
+  background: #e8f7ee;
+  box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.3);
+}
+
+.section-drag-handle {
+  color: #9bbaa8;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  cursor: grab;
+  flex-shrink: 0;
+  user-select: none;
+  padding: 0 0.15rem;
+}
+
+.section-pencil-btn {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  background: #f4fbf6;
+  border-color: #c5dfd0;
+  flex-shrink: 0;
+}
+
+.section-pencil-btn:hover {
+  background: #e2f5ea;
+  border-color: #4a9d70;
+}
+
+.section-row-label {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #123524;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.section-visibility-btn {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 0.45rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  background: transparent;
+  border-color: transparent;
+  flex-shrink: 0;
+}
+
+.section-visibility-btn:hover {
+  background: #f4fbf6;
+  border-color: #c5dfd0;
 }
 
 .section-select-btn {
   text-align: left;
   font-weight: 700;
-}
-
-.section-manager-row input {
-  grid-column: 1 / -1;
 }
 
 .section-order-buttons {
@@ -613,7 +691,7 @@ textarea {
 
 .section-picker-row {
   display: grid;
-  grid-template-columns: 110px 1fr 42px 42px;
+  grid-template-columns: 110px 1fr;
   gap: 0.45rem;
 }
 
@@ -1261,8 +1339,135 @@ textarea {
   }
 }
 
+/* ─── Personal Details Editor ─── */
+.pd-field-row {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.pd-label-input {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #3b6250;
+}
+
+.remove-field-btn,
+.remove-entry-btn {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: 0.45rem;
+  font-size: 1rem;
+  line-height: 1;
+  background: #fee2e2;
+  color: #c93030;
+  border-color: #f5c5c5;
+}
+
+.remove-field-btn:hover,
+.remove-entry-btn:hover {
+  background: #fecaca;
+  border-color: #ef9d9d;
+}
+
+.add-field-btn {
+  margin-top: 0.35rem;
+}
+
+/* ─── Entry boxes (Experience, Education, Custom) ─── */
+.entry-box {
+  border: 1px solid #c8dfd1;
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+  box-shadow: 0 4px 12px rgba(10, 44, 30, 0.05);
+}
+
+.entry-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #e4f0ea;
+}
+
+.entry-box-type {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #2f5d4a;
+  font-weight: 700;
+}
+
+.add-entry-top-btn {
+  margin-bottom: 0.35rem;
+}
+
+/* ─── Date fields ─── */
+.date-mode-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.date-mode-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.date-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.current-label {
+  background: #d1fae5;
+  color: #064e3b;
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.current-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ─── Language / Education dropdown ─── */
+.field-label-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.field-label-row span {
+  color: #3b6250;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.skill-entry-box .entry-box-header {
+  margin-bottom: 0;
+}
+
 .preview-content {
-  font-family: Inter, Calibri, Helvetica, sans-serif;
   font-size: 10.5pt;
   line-height: 1.2;
   color: #172624;
