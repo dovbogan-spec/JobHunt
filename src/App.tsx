@@ -6,28 +6,8 @@ import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
 type TabName = "resume" | "coverLetter" | "history" | "llmIntegration";
-type DateMode = "yearOnly" | "yearMonth";
 type PersonalDetailField = { id: string; label: string; value: string };
-type ExperienceEntry = {
-  id: string;
-  title: string;
-  subTitle: string;
-  startDate: string;
-  endDate: string;
-  dateMode: DateMode;
-  isCurrent: boolean;
-};
 type SkillEntry = { id: string; name: string; level: string };
-type EducationEntry = {
-  id: string;
-  institution: string;
-  degree: string;
-  startDate: string;
-  endDate: string;
-  dateMode: DateMode;
-  isCurrent: boolean;
-  languageLevel: string;
-};
 type CustomSectionEntry = { id: string; title: string; content: string };
 type InsightTab = "soft" | "hard" | "reviews" | "salary" | "values";
 type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
@@ -115,12 +95,6 @@ type ExperienceEditorField = {
 type ExperienceEditorItem = {
   id: string;
   fields: ExperienceEditorField[];
-};
-type DropZonePosition = "top" | "bottom" | "left" | "right";
-type DropIndicator = {
-  itemId: string;
-  fieldId: string;
-  position: DropZonePosition;
 };
 
 const SKILL_KEYWORDS = [
@@ -269,10 +243,7 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
-  const [experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
-  const [openFieldMenuFor, setOpenFieldMenuFor] = useState<string | null>(null);
-  const [draggingField, setDraggingField] = useState<{ itemId: string; fieldId: string } | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
+  const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
   const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
@@ -283,9 +254,7 @@ function App() {
     { id: "pd-phone", label: "Phone", value: "" },
     { id: "pd-linkedin", label: "LinkedIn", value: "" },
   ]);
-  const [experienceEntries, setExperienceEntries] = useState<ExperienceEntry[]>([]);
   const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
-  const [educationEntries, setEducationEntries] = useState<EducationEntry[]>([]);
   const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
@@ -1033,15 +1002,6 @@ function App() {
   function removePersonalDetailField(id: string) {
     setPersonalDetailFields((prev) => prev.filter((f) => f.id !== id));
   }
-  function addExperienceEntry() {
-    setExperienceEntries((prev) => [...prev, { id: uuidv4(), title: "", subTitle: "", startDate: "", endDate: "", dateMode: "yearMonth", isCurrent: false }]);
-  }
-  function updateExperienceEntry(id: string, field: keyof ExperienceEntry, value: string | boolean | DateMode) {
-    setExperienceEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
-  }
-  function removeExperienceEntry(id: string) {
-    setExperienceEntries((prev) => prev.filter((e) => e.id !== id));
-  }
   function addSkillEntry() {
     setSkillEntries((prev) => [...prev, { id: uuidv4(), name: "", level: "" }]);
   }
@@ -1050,15 +1010,6 @@ function App() {
   }
   function removeSkillEntry(id: string) {
     setSkillEntries((prev) => prev.filter((e) => e.id !== id));
-  }
-  function addEducationEntry() {
-    setEducationEntries((prev) => [...prev, { id: uuidv4(), institution: "", degree: "", startDate: "", endDate: "", dateMode: "yearMonth", isCurrent: false, languageLevel: "" }]);
-  }
-  function updateEducationEntry(id: string, field: keyof EducationEntry, value: string | boolean | DateMode) {
-    setEducationEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
-  }
-  function removeEducationEntry(id: string) {
-    setEducationEntries((prev) => prev.filter((e) => e.id !== id));
   }
   function addCustomSectionEntry(sectionId: string) {
     setCustomSectionContents((prev) => ({
@@ -1145,51 +1096,6 @@ function App() {
       setActiveSectionId(firstVisibleSection.id);
     }
   }, [activeSectionId, editMode, sections]);
-  function updateExperienceField(itemId: string, fieldId: string, value: string) {
-    setExperienceEditor((prev) =>
-      prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              fields: item.fields.map((field) =>
-                field.id === fieldId ? { ...field, value } : field,
-              ),
-            }
-          : item,
-      ),
-    );
-  }
-  function addExperienceMainBox() {
-    setExperienceEditor((prev) => [
-      ...prev,
-      {
-        id: uuidv4(),
-        fields: [{ id: uuidv4(), type: "text", value: "", width: "full" }],
-      },
-    ]);
-  }
-
-  function addExperienceField(itemId: string, type: ExperienceFieldType) {
-    setExperienceEditor((prev) =>
-      prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              fields: [
-                ...item.fields,
-                {
-                  id: uuidv4(),
-                  type,
-                  value: "",
-                  width: type === "text" ? "full" : "half",
-                },
-              ],
-            }
-          : item,
-      ),
-    );
-  }
-
   function clearActiveSectionContent() {
     if (activeSectionId === "header") {
       setPersonalDetailFields((prev) => prev.map((f) => ({ ...f, value: "" })));
@@ -1232,61 +1138,6 @@ function App() {
     document.execCommand(command, false);
   }
 
-  function moveExperienceField(itemId: string, targetFieldId: string, position: DropZonePosition) {
-    if (!draggingField || draggingField.itemId !== itemId || draggingField.fieldId === targetFieldId) return;
-    setExperienceEditor((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-        const source = item.fields.find((field) => field.id === draggingField.fieldId);
-        const targetIndex = item.fields.findIndex((field) => field.id === targetFieldId);
-        if (!source || targetIndex < 0) return item;
-        const withoutSource = item.fields.filter((field) => field.id !== draggingField.fieldId);
-        const adjustedTargetIndex = withoutSource.findIndex((field) => field.id === targetFieldId);
-        const sourceField: ExperienceEditorField = {
-          ...source,
-          width: position === "left" || position === "right" ? "half" : "full",
-        };
-        const insertAt = position === "top" || position === "left" ? adjustedTargetIndex : adjustedTargetIndex + 1;
-        const next = [...withoutSource];
-        next.splice(insertAt, 0, sourceField);
-        if (position === "left" || position === "right") {
-          return {
-            ...item,
-            fields: next.map((field) => ({
-              ...field,
-              width:
-                field.id === sourceField.id || field.id === targetFieldId
-                  ? "half"
-                  : "full",
-            })),
-          };
-        }
-        return { ...item, fields: next };
-      }),
-    );
-    setDraggingField(null);
-    setDropIndicator(null);
-  }
-  function moveExperienceFieldByOffset(itemId: string, fieldId: string, direction: "up" | "down") {
-    setExperienceEditor((prev) =>
-      prev.map((item) => {
-        if (item.id !== itemId) return item;
-        const currentIndex = item.fields.findIndex((field) => field.id === fieldId);
-        if (currentIndex < 0) return item;
-        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-        if (targetIndex < 0 || targetIndex >= item.fields.length) return item;
-        const next = [...item.fields];
-        const [moved] = next.splice(currentIndex, 1);
-        next.splice(targetIndex, 0, { ...moved, width: "full" });
-        return {
-          ...item,
-          fields: next.map((field, index) =>
-            index === targetIndex ? field : { ...field, width: "full" },
-          ),
-        };
-      }),
-    );
-  }
   function updateListField<K extends "education" | "keySkills" | "interests" | "languages">(
     key: K,
     index: number,
