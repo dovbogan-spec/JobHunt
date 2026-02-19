@@ -488,11 +488,9 @@ textarea {
 
 .preview-toolbar {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  justify-content: flex-end;
   position: absolute;
   top: 1.2rem;
-  left: 1.2rem;
   right: 1.2rem;
   z-index: 2;
   pointer-events: none;
@@ -509,26 +507,8 @@ textarea {
   pointer-events: auto;
 }
 
-.toolbar-zoom-value {
-  font-size: 0.84rem;
-  font-weight: 700;
-  min-width: 48px;
-  text-align: center;
-  color: #2f855a;
-}
-
 .toolbar-fullscreen {
-  margin-left: auto;
-}
-
-.section-picker {
-  border: 1px dashed #9fcdb2;
-  border-radius: 0.65rem;
-  padding: 0.65rem;
-  margin-bottom: 0.75rem;
-  display: grid;
-  gap: 0.5rem;
-  background: #f6fcf8;
+  pointer-events: auto;
 }
 
 .section-manager-panel {
@@ -752,6 +732,50 @@ textarea {
   min-width: 40px;
 }
 
+
+.reorderable-item {
+  position: relative;
+}
+
+.reorderable-item:focus-visible {
+  outline: 3px solid #2f855a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(47, 133, 90, 0.2);
+}
+
+.reorderable-item.is-grabbed {
+  border-color: #2f855a;
+  background: #e9f7ef;
+}
+
+.reorderable-item.drag-over {
+  border-color: #3f9969;
+  box-shadow: 0 0 0 2px rgba(63, 153, 105, 0.35);
+}
+
+.reorder-controls {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.reorder-controls button {
+  min-height: 28px;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .section-picker-header {
   display: flex;
   align-items: center;
@@ -845,11 +869,6 @@ textarea {
   border-top: 1px solid #dfece4;
 }
 
-.top-section-row {
-  padding-bottom: 0.4rem;
-  border-bottom: 1px solid #cee6d7;
-}
-
 .preview-frame {
   overflow: auto;
   border: 1px solid #cee6d7;
@@ -860,19 +879,6 @@ textarea {
   align-items: start;
   justify-items: stretch;
   height: 100%;
-}
-
-.pdf-preview-mode {
-  background: #ececec;
-}
-
-.pdf-preview-mode .preview-content {
-  background: #fff;
-  margin: 0 auto;
-  width: min(100%, 794px);
-  min-height: 1123px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  padding: 2rem;
 }
 
 .resume-preview.is-fullscreen .preview-frame {
@@ -906,42 +912,6 @@ textarea {
   gap: 0.2rem;
 }
 
-.preview-bottom-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-/* Clickable sections in CV preview */
-.preview-section-clickable {
-  cursor: pointer;
-  border-radius: 0.5rem;
-  transition: background 0.15s ease;
-  padding: 0.25rem 0.35rem;
-  margin: -0.25rem -0.35rem;
-}
-
-.preview-section-clickable:hover {
-  background: rgba(47, 133, 90, 0.06);
-}
-
-.preview-section-clickable:focus-visible {
-  outline: 2px solid #2f855a;
-  outline-offset: 2px;
-}
-
-.preview-section-pencil {
-  margin-left: 0.4rem;
-  font-size: 0.75rem;
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  vertical-align: middle;
-}
-
-.preview-section-clickable:hover .preview-section-pencil {
-  opacity: 0.7;
-}
 
 /* Section label inline edit input */
 .section-label-edit-input {
@@ -989,15 +959,6 @@ textarea {
   border-top: 1px solid #d8ece0;
   padding-top: 0.7rem;
   margin-top: 0.7rem;
-}
-
-.preview-bottom-actions button {
-  min-height: 36px;
-  padding: 0.35rem 0.9rem;
-  border-radius: 0.55rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  width: auto;
 }
 
 .insights ul,
