@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
+import { MODEL_CATALOG, getDefaultModel, getModelsForProvider, type LlmProvider as CatalogLlmProvider } from "./config/modelDefinitions";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -68,7 +69,7 @@ type CustomFieldBlueprint = {
   label: string;
 };
 type InsightTab = "soft" | "hard" | "reviews" | "salary" | "values";
-type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
+type LlmProvider = CatalogLlmProvider;
 
 type ExperienceItem = {
   id: string;
@@ -212,13 +213,9 @@ const TEMPLATES: TemplateName[] = [
 ];
 const LLM_SETTINGS_STORAGE_KEY = "job-hunt-llm-settings";
 const RESUME_DRAFT_STORAGE_KEY = "job-hunt-resume-draft";
-const providerLabels: Record<LlmProvider, string> = {
-  openai: "ChatGPT / OpenAI",
-  anthropic: "Claude / Anthropic",
-  azureOpenai: "Copilot / Azure OpenAI",
-  gemini: "Gemini / Google AI",
-  custom: "Custom endpoint",
-};
+const providerLabels: Record<LlmProvider, string> = Object.fromEntries(
+  (Object.keys(MODEL_CATALOG) as LlmProvider[]).map((p) => [p, MODEL_CATALOG[p].label]),
+) as Record<LlmProvider, string>;
 const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   title: "Title",
   subTitle: "Sub-title",
@@ -276,7 +273,7 @@ const initialResume: ResumeData = {
 const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
-  model: "gpt-4o-mini",
+  model: getDefaultModel("openai"),
   endpoint: "",
   organizationId: "",
   azureApiVersion: "2024-10-21",
@@ -321,6 +318,8 @@ function readDraftSnapshot(): ResumeDraftSnapshot | null {
   } catch {
     return null;
   }
+}
+
 function migrateResumeData(value: unknown): ResumeData {
   if (!value || typeof value !== "object") return initialResume;
   const source = value as Record<string, unknown>;
@@ -424,6 +423,8 @@ function migrateResumeData(value: unknown): ResumeData {
     languages,
     organization: String(source.organization || ""),
   };
+}
+
 function makeCustomSectionField(type: CustomFieldType, label?: string): CustomSectionField {
   const baseLabel = label || CUSTOM_FIELD_TYPE_LABELS[type];
   if (type === "textList") {
@@ -445,6 +446,8 @@ function makeCustomSectionField(type: CustomFieldType, label?: string): CustomSe
     return { id: uuidv4(), type, label: baseLabel, value: "Medium" };
   }
   return { id: uuidv4(), type, label: baseLabel, value: "" };
+}
+
 function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   if (
     fromIndex < 0 ||
@@ -465,6 +468,51 @@ function moveArrayItemById<T extends { id: string }>(items: T[], fromId: string,
   const fromIndex = items.findIndex((item) => item.id === fromId);
   const toIndex = items.findIndex((item) => item.id === toId);
   return moveArrayItem(items, fromIndex, toIndex);
+}
+
+function ModelStatusBadge({ status }: { status: ConnectivityStatus | undefined }) {
+  if (status === "success") return <span className="model-status-ok" aria-label="connected">✓</span>;
+  if (status === "error") return <span className="model-status-err" aria-label="not connected">✗</span>;
+  if (status === "testing") return <span className="model-status-testing" aria-label="testing">…</span>;
+  return null;
+}
+
+type ModelPickerProps = {
+  provider: LlmProvider;
+  open: boolean;
+  statusMap: Partial<Record<LlmProvider, ConnectivityStatus>>;
+  onToggle: () => void;
+  onSelect: (provider: LlmProvider) => void;
+};
+
+function ModelPickerDropdown({ provider, open, statusMap, onToggle, onSelect }: ModelPickerProps) {
+  const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
+  return (
+    <div className="model-picker-wrapper">
+      <button
+        className={"small-action model-picker-btn" + (open ? " active" : "")}
+        onClick={onToggle}
+        title="Switch AI model"
+      >
+        {"🤖 " + providerLabels[provider] + " "}
+        <ModelStatusBadge status={statusMap[provider]} />
+      </button>
+      {open && (
+        <div className="model-picker-dropdown">
+          {providers.map((p) => (
+            <button
+              key={p}
+              className={"model-picker-option" + (provider === p ? " selected" : "")}
+              onClick={() => onSelect(p)}
+            >
+              <span className="model-picker-label">{providerLabels[p]}</span>
+              <ModelStatusBadge status={statusMap[p]} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function App() {
@@ -502,12 +550,7 @@ function App() {
     initialDraftSnapshot?.editorDraft ?? initialDraftSnapshot?.resume ?? initialResume,
   );
   const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
-  const [editMode, setEditMode] = useState(false);
-  const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
-  const [, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
-  const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
-  const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
   const [dropTarget, setDropTarget] = useState<DragState>(null);
   const [grabState, setGrabState] = useState<GrabState>(null);
@@ -525,22 +568,9 @@ function App() {
   const [skillEntries, setSkillEntries] = useState<SkillEntry[]>(
     initialDraftSnapshot?.skillEntries ?? [],
   );
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>(
-    initialDraftSnapshot?.customSectionContents ?? {},
+  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionField[]>>(
+    (initialDraftSnapshot?.customSectionContents ?? {}) as Record<string, CustomSectionField[]>,
   );
-  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetails>(
-    initialResume.personalDetails,
-  );
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
-  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>([
-    { id: "pd-fullname", label: "Full Name", value: "" },
-    { id: "pd-title", label: "Title", value: "" },
-    { id: "pd-email", label: "Email", value: "" },
-    { id: "pd-phone", label: "Phone", value: "" },
-    { id: "pd-linkedin", label: "LinkedIn", value: "" },
-  ]);
-  const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionField[]>>({});
   const [addSectionModalOpen, setAddSectionModalOpen] = useState(false);
   const [sectionCreationMode, setSectionCreationMode] = useState<"template" | "custom">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SECTION_TEMPLATES[0].id);
@@ -548,7 +578,6 @@ function App() {
   const [customFieldBlueprints, setCustomFieldBlueprints] = useState<CustomFieldBlueprint[]>([]);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const [hasGeneratedResume, setHasGeneratedResume] = useState(false);
@@ -596,6 +625,8 @@ function App() {
     useState<ConnectivityStatus>("idle");
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
   const [byokEnabled, setByokEnabled] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const previewRef = useRef<HTMLElement | null>(null);
   const richTextEditorRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -757,6 +788,15 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
+  function switchProvider(provider: LlmProvider) {
+    setLlmSettings((prev) => ({
+      ...prev,
+      provider,
+      model: getDefaultModel(provider),
+      endpoint: MODEL_CATALOG[provider].defaultEndpoint,
+    }));
+  }
+
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
@@ -824,12 +864,44 @@ function App() {
       }
 
       setConnectivityStatus("success");
+      setModelStatusMap((prev) => ({ ...prev, [provider]: "success" }));
     } catch (error) {
       setConnectivityStatus("error");
       setConnectivityErrorCode(
         error instanceof Error ? error.message : "PING_FAILED",
       );
+      const { provider } = getLlmConnectionInfo(llmSettings);
+      setModelStatusMap((prev) => ({ ...prev, [provider]: "error" }));
     }
+  }
+
+  async function pingProvider(provider: LlmProvider): Promise<boolean> {
+    const model = getDefaultModel(provider);
+    try {
+      const response = await fetch("/api/llm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, model, messages: [{ role: "user", content: "ping" }] }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function pingAllProviders() {
+    const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
+    setModelStatusMap((prev) => {
+      const next = { ...prev };
+      for (const p of providers) next[p] = "testing";
+      return next;
+    });
+    const results = await Promise.all(providers.map((p) => pingProvider(p)));
+    setModelStatusMap((prev) => {
+      const next = { ...prev };
+      providers.forEach((p, i) => { next[p] = results[i] ? "success" : "error"; });
+      return next;
+    });
   }
 
   async function callModel(
@@ -1787,12 +1859,20 @@ function App() {
         <h1>🌿 Job Hunter</h1>
         <div className="header-actions">
           {byokEnabled && (
-            <button
-              className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
-              onClick={() => setTab("llmIntegration")}
-            >
-              🤖 Model API
-            </button>
+            <ModelPickerDropdown
+              provider={llmSettings.provider}
+              open={modelPickerOpen}
+              statusMap={modelStatusMap}
+              onToggle={() => {
+                const opening = !modelPickerOpen;
+                setModelPickerOpen(opening);
+                if (opening) pingAllProviders();
+              }}
+              onSelect={(p) => {
+                switchProvider(p);
+                setModelPickerOpen(false);
+              }}
+            />
           )}
           <button className="small-action" onClick={downloadResumePdf}>
             📥 Download PDF
@@ -2326,6 +2406,8 @@ function App() {
                             </div>
                           ))}
                           {editorDraft.experience.length === 0 && (
+                            <p className="editor-empty-state">No experience entries yet. Add your work history above.</p>
+                          )}
                           {editorDraft.selectedExperience.map((item, index) => {
                             const listId = "experience-entries";
                             const isGrabbed = grabState?.listId === listId && grabState.itemId === item.id;
@@ -2422,6 +2504,8 @@ function App() {
                             </div>
                           ))}
                           {editorDraft.skills.length === 0 && (
+                            <p className="editor-empty-state">No skills added yet.</p>
+                          )}
                           {skillEntries.map((entry, index) => {
                             const listId = "skills-entries";
                             const isGrabbed = grabState?.listId === listId && grabState.itemId === entry.id;
@@ -2484,25 +2568,9 @@ function App() {
                       {/* Education */}
                       {activeSectionId === "education" && (
                         <div className="structured-editor-list">
-                          {editorDraft.education.map((item, index) => (
-                            <div className="structured-editor-row" key={`education-${index}`}>
-                              <input
-                                value={item.degree}
-                                placeholder="Degree"
-                                onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    education: prev.education.filter((_, i) => i !== index),
-                                  }))
-                                }
-                                title="Remove"
                           {editorDraft.education.map((item, index) => {
                             const listId = "education-entries";
-                            const itemId = `education-${index}-${item}`;
+                            const itemId = item.id;
                             const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
                             const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
                             return (
@@ -2524,7 +2592,7 @@ function App() {
                                 onDragLeave={() => setDropTarget(null)}
                                 onDrop={() => {
                                   if (dragState?.listId === listId) {
-                                    const fromIndex = editorDraft.education.findIndex((value, i) => `education-${i}-${value}` === dragState.itemId);
+                                    const fromIndex = editorDraft.education.findIndex((value) => value.id === dragState.itemId);
                                     if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("education", fromIndex, index);
                                   }
                                   setDragState(null);
@@ -2533,9 +2601,9 @@ function App() {
                                 onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
                                 <input
-                                  value={item}
+                                  value={item.degree}
                                   placeholder="e.g. BSc Computer Science, University Name"
-                                  onChange={(e) => updateListField("education", index, e.target.value)}
+                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
                                 />
                                 <div className="reorder-controls">
                                   <button type="button" onClick={() => moveDraftListEntries("education", index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
@@ -2568,26 +2636,10 @@ function App() {
                       {/* Interests / Languages */}
                       {(activeSectionId === "interests" || activeSectionId === "languages") && (
                         <div className="structured-editor-list">
-                          {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => (
-                            <div className="structured-editor-row" key={`${activeSectionId}-${index}`}>
-                              <input
-                                value={typeof item === "string" ? item : item.language}
-                                onChange={(e) =>
-                                  updateInterestOrLanguageField(activeSectionId === "interests" ? "interests" : "languages", index, e.target.value)
-                                }
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() => {
-                                  const key = activeSectionId === "interests" ? "interests" : "languages";
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    [key]: (prev[key] as string[]).filter((_, i) => i !== index),
-                                  }));
                           {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => {
                             const key = activeSectionId === "interests" ? "interests" : "languages";
                             const listId = `${key}-entries`;
-                            const itemId = `${key}-${index}-${item}`;
+                            const itemId = `${key}-${index}`;
                             const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
                             const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
                             return (
@@ -2609,8 +2661,7 @@ function App() {
                                 onDragLeave={() => setDropTarget(null)}
                                 onDrop={() => {
                                   if (dragState?.listId === listId && key === "languages") {
-                                    const values = editorDraft.languages;
-                                    const fromIndex = values.findIndex((value, i) => `${key}-${i}-${value}` === dragState.itemId);
+                                    const fromIndex = editorDraft.languages.findIndex((_, i) => `${key}-${i}` === dragState.itemId);
                                     if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("languages", fromIndex, index);
                                   }
                                   setDragState(null);
@@ -2619,9 +2670,9 @@ function App() {
                                 onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
                                 <input
-                                  value={item}
+                                  value={typeof item === "string" ? item : item.language}
                                   onChange={(e) =>
-                                    updateListField(
+                                    updateInterestOrLanguageField(
                                       activeSectionId === "interests" ? "interests" : "languages",
                                       index,
                                       e.target.value,
@@ -2669,44 +2720,35 @@ function App() {
                               </button>
                             ))}
                           </div>
-                          {(customSectionContents[activeSectionId] || []).map((field, index, arr) => (
-                            <div key={field.id} className="entry-box">
-                              <div className="entry-box-header">
-                                <span className="entry-box-type">{CUSTOM_FIELD_TYPE_LABELS[field.type]}</span>
-                                <div className="entry-box-actions">
-                                  <button onClick={() => moveCustomSectionField(activeSectionId, field.id, -1)} disabled={index === 0}>↑</button>
-                                  <button onClick={() => moveCustomSectionField(activeSectionId, field.id, 1)} disabled={index === arr.length - 1}>↓</button>
-                                  <button className="remove-entry-btn" onClick={() => removeCustomSectionField(activeSectionId, field.id)} title="Remove">✕</button>
-                                </div>
-                          <button className="small-action add-entry-top-btn" onClick={() => addCustomSectionEntry(activeSectionId)}>
+                          <button className="small-action add-entry-top-btn" onClick={() => addCustomSectionField(activeSectionId, "title")}>
                             + Add entry
                           </button>
-                          {(customSectionContents[activeSectionId] || []).map((entry, index) => {
+                          {(customSectionContents[activeSectionId] || []).map((field, index) => {
                             const listId = `${activeSectionId}-custom-entries`;
-                            const isGrabbed = grabState?.listId === listId && grabState.itemId === entry.id;
-                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === entry.id;
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === field.id;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === field.id;
                             return (
-                            <div key={entry.id} className={`entry-box reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
+                            <div key={field.id} className={`entry-box reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
                               draggable
                               tabIndex={0}
                               aria-grabbed={isGrabbed}
                               aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
                               onKeyDown={(event) => handleReorderKeyDown(event, {
                                 listId,
-                                itemId: entry.id,
+                                itemId: field.id,
                                 index,
                                 total: (customSectionContents[activeSectionId] || []).length,
-                                label: entry.title || `Custom entry ${index + 1}`,
+                                label: field.label || `Custom entry ${index + 1}`,
                                 onMove: (from, to) => moveCustomSectionEntry(activeSectionId, from, to),
                               })}
-                              onDragStart={() => setDragState({ listId, itemId: entry.id })}
-                              onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: entry.id }); }}
+                              onDragStart={() => setDragState({ listId, itemId: field.id })}
+                              onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: field.id }); }}
                               onDragLeave={() => setDropTarget(null)}
                               onDrop={() => {
-                                if (dragState?.listId === listId && dragState.itemId !== entry.id) {
+                                if (dragState?.listId === listId && dragState.itemId !== field.id) {
                                   setCustomSectionContents((prev) => ({
                                     ...prev,
-                                    [activeSectionId]: moveArrayItemById(prev[activeSectionId] || [], dragState.itemId, entry.id),
+                                    [activeSectionId]: moveArrayItemById(prev[activeSectionId] || [], dragState.itemId, field.id),
                                   }));
                                 }
                                 setDragState(null);
@@ -2720,7 +2762,7 @@ function App() {
                                   <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
                                   <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.min((customSectionContents[activeSectionId] || []).length - 1, index + 1))} disabled={index === (customSectionContents[activeSectionId] || []).length - 1}>Move Down</button>
                                 </div>
-                                <button className="remove-entry-btn" onClick={() => removeCustomSectionEntry(activeSectionId, entry.id)} title="Remove">✕</button>
+                                <button className="remove-entry-btn" onClick={() => removeCustomSectionField(activeSectionId, field.id)} title="Remove">✕</button>
                               </div>
                               <input
                                 value={field.label}
@@ -2817,10 +2859,6 @@ function App() {
                                 </h2>
                                 <p className="preview-text">{previewResume.personalDetails.professionalTitle || "Professional Title"}</p>
                                 <p className="preview-text">{previewResume.personalDetails.email || "email@example.com"} · {previewResume.personalDetails.phone || "(000) 000-0000"} · {previewResume.personalDetails.linkedIn || "linkedin.com/in/your-profile"} {previewResume.personalDetails.portfolio ? `· ${previewResume.personalDetails.portfolio}` : ""}</p>
-                              <div key={section.id}>
-                                <h2>{previewResume.fullName || "Your Name"}</h2>
-                                <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
-                                <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
                               </div>
                             );
                           }
@@ -2853,10 +2891,6 @@ function App() {
                                     <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
                                     <p className="preview-bullet">• {toPlainText(item.description)}</p>
                                   </div>
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
-                                {previewResume.selectedExperience.map((item) => (
-                                  <p className="preview-bullet" key={item.id}>• {toPlainText(item.text)}</p>
                                 ))}
                               </div>
                             );
@@ -2877,9 +2911,6 @@ function App() {
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
                                 {previewResume.education.map((item) => <p className="preview-text" key={item.id}>{item.degree}{item.institution ? `, ${item.institution}` : ""} {item.startDate || item.endDate ? `(${item.startDate} - ${item.endDate})` : ""}</p>)}
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
-                                {previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)}
                               </div>
                             );
                           }
@@ -2899,9 +2930,6 @@ function App() {
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
                                 <p className="preview-text">{previewResume.skills.map((skill) => `${skill.skillName} (${skill.proficiency})`).join(" • ")}</p>
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
-                                <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
                               </div>
                             );
                           }
@@ -2929,9 +2957,6 @@ function App() {
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
                                 <p className="preview-text">{previewResume.languages.map((language) => `${language.language} — ${language.level}`).join(" · ")}</p>
-                              <div key={section.id}>
-                                <h4>{section.label}</h4>
-                                <p className="preview-text">{previewResume.languages.join(" · ")}</p>
                               </div>
                             );
                           }
@@ -2979,14 +3004,6 @@ function App() {
                                 }
                                 return <p key={field.id} className="preview-text">{field.value}</p>;
                               })}
-                            <div key={section.id}>
-                              <h4>{section.label}</h4>
-                              {customEntries.map((entry) => (
-                                <div key={entry.id}>
-                                  {entry.title && <p className="preview-text" style={{ fontWeight: 700, marginBottom: "0.2rem" }}>{entry.title}</p>}
-                                  {entry.content && <p className="preview-text">{entry.content}</p>}
-                                </div>
-                              ))}
                             </div>
                           );
                         })}
@@ -3057,12 +3074,7 @@ function App() {
                     <span>Provider</span>
                     <select
                       value={llmSettings.provider}
-                      onChange={(e) =>
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          provider: e.target.value as LlmProvider,
-                        }))
-                      }
+                      onChange={(e) => switchProvider(e.target.value as LlmProvider)}
                     >
                       {(Object.keys(providerLabels) as LlmProvider[]).map(
                         (provider) => (
@@ -3075,7 +3087,7 @@ function App() {
                   </label>
                   <label>
                     <span>Model</span>
-                    <input
+                    <select
                       value={llmSettings.model}
                       onChange={(e) =>
                         setLlmSettings((prev) => ({
@@ -3083,8 +3095,13 @@ function App() {
                           model: e.target.value,
                         }))
                       }
-                      placeholder="Model name"
-                    />
+                    >
+                      {getModelsForProvider(llmSettings.provider).map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>Endpoint URL</span>
