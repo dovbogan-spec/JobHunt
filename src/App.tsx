@@ -801,6 +801,15 @@ function App() {
     setExperiencePage(1);
   }, [companyFilter, skillFilter, experienceItems.length]);
 
+  function switchProvider(provider: LlmProvider) {
+    setLlmSettings((prev) => ({
+      ...prev,
+      provider,
+      model: getDefaultModel(provider),
+      endpoint: MODEL_CATALOG[provider].defaultEndpoint,
+    }));
+  }
+
   function saveLlmSettings() {
     localStorage.setItem(LLM_SETTINGS_STORAGE_KEY, JSON.stringify(llmSettings));
     setSaveMessage("Model API integration settings saved.");
@@ -1873,12 +1882,7 @@ function App() {
                 if (opening) pingAllProviders();
               }}
               onSelect={(p) => {
-                setLlmSettings((prev) => ({
-                  ...prev,
-                  provider: p,
-                  model: getDefaultModel(p),
-                  endpoint: MODEL_CATALOG[p].defaultEndpoint,
-                }));
+                switchProvider(p);
                 setModelPickerOpen(false);
               }}
             />
@@ -3146,15 +3150,7 @@ function App() {
                     <span>Provider</span>
                     <select
                       value={llmSettings.provider}
-                      onChange={(e) => {
-                        const newProvider = e.target.value as LlmProvider;
-                        setLlmSettings((prev) => ({
-                          ...prev,
-                          provider: newProvider,
-                          model: getDefaultModel(newProvider),
-                          endpoint: MODEL_CATALOG[newProvider].defaultEndpoint,
-                        }));
-                      }}
+                      onChange={(e) => switchProvider(e.target.value as LlmProvider)}
                     >
                       {(Object.keys(providerLabels) as LlmProvider[]).map(
                         (provider) => (
