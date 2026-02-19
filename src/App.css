@@ -664,6 +664,67 @@ textarea {
   min-width: 40px;
 }
 
+
+.reorderable-item {
+  position: relative;
+}
+
+.reorderable-item:focus-visible {
+  outline: 3px solid #2f855a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(47, 133, 90, 0.2);
+}
+
+.reorderable-item.is-grabbed {
+  border-color: #2f855a;
+  background: #e9f7ef;
+}
+
+.reorderable-item.drag-over {
+  border-color: #3f9969;
+  box-shadow: 0 0 0 2px rgba(63, 153, 105, 0.35);
+}
+
+.reorder-controls {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.reorder-controls button {
+  min-height: 28px;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.section-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-picker-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.45rem;
+}
+
+.section-picker-row.active {
+  outline: 2px solid #89bda0;
+  border-radius: 0.6rem;
+}
+
 .focused-editor-card {
   border: 1px solid #cfe3d7;
   border-radius: 1rem;
