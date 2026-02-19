@@ -96,6 +96,16 @@ type ExperienceEditorItem = {
   id: string;
   fields: ExperienceEditorField[];
 };
+type ResumeDraftSnapshot = {
+  resume: ResumeData;
+  editorDraft: ResumeData;
+  personalDetailFields: PersonalDetailField[];
+  skillEntries: SkillEntry[];
+  customSectionContents: Record<string, CustomSectionEntry[]>;
+  sections: ResumeSection[];
+  activeSectionId: string;
+  editMode: boolean;
+};
 
 const SKILL_KEYWORDS = [
   "react",
@@ -147,6 +157,7 @@ const TEMPLATES: TemplateName[] = [
   "Professional",
 ];
 const LLM_SETTINGS_STORAGE_KEY = "job-hunt-llm-settings";
+const RESUME_DRAFT_STORAGE_KEY = "job-hunt-resume-draft";
 const providerLabels: Record<LlmProvider, string> = {
   openai: "ChatGPT / OpenAI",
   anthropic: "Claude / Anthropic",
@@ -214,13 +225,26 @@ function normalizeHistory(
   });
 }
 
+function readDraftSnapshot(): ResumeDraftSnapshot | null {
+  const raw = localStorage.getItem(RESUME_DRAFT_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ResumeDraftSnapshot;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
+  const initialDraftSnapshot = readDraftSnapshot();
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
   const [jobLink, setJobLink] = useState("");
   const [experienceDoc, setExperienceDoc] = useState("");
   const [experienceItems, setExperienceItems] = useState<ExperienceItem[]>([]);
-  const [resume, setResume] = useState<ResumeData>(initialResume);
+  const [resume, setResume] = useState<ResumeData>(
+    initialDraftSnapshot?.resume ?? initialResume,
+  );
   const [coverLetter, setCoverLetter] = useState("");
   const [coverLetterNotes, setCoverLetterNotes] = useState("");
   const [template, setTemplate] = useState<TemplateName>("Modern");
@@ -241,31 +265,44 @@ function App() {
     "Hi! I can help complete missing CV details.",
   ]);
   const [zoom, setZoom] = useState(1);
-  const [editMode, setEditMode] = useState(false);
-  const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
+  const [editMode, setEditMode] = useState(initialDraftSnapshot?.editMode ?? false);
+  const [editorDraft, setEditorDraft] = useState<ResumeData>(
+    initialDraftSnapshot?.editorDraft ?? initialDraftSnapshot?.resume ?? initialResume,
+  );
   const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
   const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
-  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>([
-    { id: "pd-fullname", label: "Full Name", value: "" },
-    { id: "pd-title", label: "Title", value: "" },
-    { id: "pd-email", label: "Email", value: "" },
-    { id: "pd-phone", label: "Phone", value: "" },
-    { id: "pd-linkedin", label: "LinkedIn", value: "" },
-  ]);
-  const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
+  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>(
+    initialDraftSnapshot?.personalDetailFields ?? [
+      { id: "pd-fullname", label: "Full Name", value: "" },
+      { id: "pd-title", label: "Title", value: "" },
+      { id: "pd-email", label: "Email", value: "" },
+      { id: "pd-phone", label: "Phone", value: "" },
+      { id: "pd-linkedin", label: "LinkedIn", value: "" },
+    ],
+  );
+  const [skillEntries, setSkillEntries] = useState<SkillEntry[]>(
+    initialDraftSnapshot?.skillEntries ?? [],
+  );
+  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>(
+    initialDraftSnapshot?.customSectionContents ?? {},
+  );
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const [hasGeneratedResume, setHasGeneratedResume] = useState(false);
   const [showIntake, setShowIntake] = useState(true);
-  const [sections, setSections] = useState<ResumeSection[]>(initialSections);
-  const [activeSectionId, setActiveSectionId] = useState<string>(
-    initialSections.find((section) => section.visible)?.id ?? initialSections[0].id,
+  const [sections, setSections] = useState<ResumeSection[]>(
+    initialDraftSnapshot?.sections ?? initialSections,
   );
+  const [activeSectionId, setActiveSectionId] = useState<string>(
+    initialDraftSnapshot?.activeSectionId ??
+      initialSections.find((section) => section.visible)?.id ??
+      initialSections[0].id,
+  );
+  const [savedSectionId, setSavedSectionId] = useState<string | null>(null);
   const [requirementChecks, setRequirementChecks] = useState<
     RequirementCheck[]
   >([]);
@@ -303,6 +340,7 @@ function App() {
   const [byokEnabled, setByokEnabled] = useState(false);
   const previewRef = useRef<HTMLElement | null>(null);
   const richTextEditorRef = useRef<HTMLDivElement | null>(null);
+  const autosaveTimerRef = useRef<number | null>(null);
   const previewResume = editMode ? editorDraft : resume;
   const activeSection = sections.find((section) => section.id === activeSectionId);
 
@@ -355,6 +393,73 @@ function App() {
       setActiveSectionId(fallback);
     }
   }, [activeSectionId, sections]);
+
+  function buildCanonicalResume(): ResumeData {
+    const findField = (label: string) =>
+      personalDetailFields.find((f) => f.label === label)?.value ?? "";
+    const normalizedSkills = skillEntries
+      .map((entry) => entry.name.trim())
+      .filter(Boolean);
+    return {
+      ...editorDraft,
+      fullName: findField("Full Name") || editorDraft.fullName,
+      primaryTitle: findField("Title") || editorDraft.primaryTitle,
+      email: findField("Email") || editorDraft.email,
+      phone: findField("Phone") || editorDraft.phone,
+      linkedin: findField("LinkedIn") || editorDraft.linkedin,
+      keySkills: normalizedSkills.length ? normalizedSkills : editorDraft.keySkills,
+    };
+  }
+
+  function persistDraftSnapshot(nextResume: ResumeData, nextEditMode: boolean) {
+    const snapshot: ResumeDraftSnapshot = {
+      resume: nextResume,
+      editorDraft,
+      personalDetailFields,
+      skillEntries,
+      customSectionContents,
+      sections,
+      activeSectionId,
+      editMode: nextEditMode,
+    };
+    localStorage.setItem(RESUME_DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
+  }
+
+  function commitEditorChanges(sectionId: string, nextEditMode = true) {
+    const nextResume = buildCanonicalResume();
+    setResume(nextResume);
+    persistDraftSnapshot(nextResume, nextEditMode);
+    setSavedSectionId(sectionId);
+  }
+
+  useEffect(() => {
+    if (!savedSectionId) return;
+    const timer = window.setTimeout(() => setSavedSectionId(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [savedSectionId]);
+
+  useEffect(() => {
+    if (!editMode) return;
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = window.setTimeout(() => {
+      commitEditorChanges(activeSectionId);
+    }, 600);
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [
+    activeSectionId,
+    customSectionContents,
+    editMode,
+    editorDraft,
+    personalDetailFields,
+    sections,
+    skillEntries,
+  ]);
 
   const companies = useMemo(
     () => [
@@ -1063,21 +1168,16 @@ function App() {
     setEditMode(true);
   }
   function saveEditingResume() {
-    const findField = (label: string) => personalDetailFields.find((f) => f.label === label)?.value ?? "";
-    setResume({
-      ...editorDraft,
-      fullName: findField("Full Name") || editorDraft.fullName,
-      primaryTitle: findField("Title") || editorDraft.primaryTitle,
-      email: findField("Email") || editorDraft.email,
-      phone: findField("Phone") || editorDraft.phone,
-      linkedin: findField("LinkedIn") || editorDraft.linkedin,
-    });
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+    commitEditorChanges(activeSectionId, false);
     setEditMode(false);
-    setSaveMessage("Resume edits saved.");
   }
   function cancelEditingResume() {
     setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
     setEditMode(false);
+    persistDraftSnapshot(resume, false);
   }
   function updateActiveSectionVisibility(visible: boolean) {
     setSections((prev) =>
@@ -1578,7 +1678,17 @@ function App() {
                       ))}
                     </div>
                   {editMode && activeSection && (
-                    <section className="focused-editor-card">
+                    <section
+                      className="focused-editor-card"
+                      onBlurCapture={(event) => {
+                        if (!editMode) return;
+                        if (!(event.target instanceof HTMLElement)) return;
+                        if (autosaveTimerRef.current) {
+                          window.clearTimeout(autosaveTimerRef.current);
+                        }
+                        commitEditorChanges(activeSectionId);
+                      }}
+                    >
                       <header className="focused-editor-header">
                         <div>
                           <p className="focused-editor-kicker">Editing section</p>
@@ -1594,6 +1704,11 @@ function App() {
                           ) : (
                             <h4>
                               {activeSection.label}
+                              {savedSectionId === activeSectionId && (
+                                <span className="section-save-confirmation" role="status" aria-live="polite">
+                                  ✓ Saved
+                                </span>
+                              )}
                               <button
                                 className="section-label-pencil"
                                 onClick={() => setEditingLabelId(activeSectionId)}
@@ -1870,6 +1985,11 @@ function App() {
                       )}
 
                       <footer className="focused-editor-footer">
+                        {savedSectionId === activeSectionId && (
+                          <span className="section-save-confirmation footer-confirmation" role="status" aria-live="polite">
+                            ✓ Saved
+                          </span>
+                        )}
                         <button className="primary" onClick={saveEditingResume}>Done</button>
                         <button onClick={cancelEditingResume}>Cancel</button>
                       </footer>

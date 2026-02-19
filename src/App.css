@@ -724,6 +724,12 @@ textarea {
   margin: 0;
 }
 
+.focused-editor-header h4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 .focused-editor-kicker {
   font-size: 0.75rem;
   color: #507764;
@@ -772,9 +778,37 @@ textarea {
 .focused-editor-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.45rem;
   padding-top: 0.25rem;
   border-top: 1px solid #dfece4;
+}
+
+.section-save-confirmation {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #2e7d32;
+  background: #eaf7ee;
+  border: 1px solid #bfe3c6;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  animation: section-save-confirm-in 240ms ease-out;
+}
+
+.footer-confirmation {
+  margin-right: auto;
+}
+
+@keyframes section-save-confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .top-section-row {
