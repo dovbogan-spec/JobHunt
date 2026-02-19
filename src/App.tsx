@@ -8,7 +8,27 @@ type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
 type TabName = "resume" | "coverLetter" | "history" | "llmIntegration";
 type PersonalDetailField = { id: string; label: string; value: string };
 type SkillEntry = { id: string; name: string; level: string };
-type CustomSectionEntry = { id: string; title: string; content: string };
+type CustomFieldType =
+  | "title"
+  | "subTitle"
+  | "dates"
+  | "textParagraph"
+  | "textList"
+  | "scoreNumeric"
+  | "scoreLevel";
+type CustomSectionField = {
+  id: string;
+  type: CustomFieldType;
+  label: string;
+  value: string;
+  secondaryValue?: string;
+  items?: string[];
+};
+type CustomFieldBlueprint = {
+  id: string;
+  type: CustomFieldType;
+  label: string;
+};
 type InsightTab = "soft" | "hard" | "reviews" | "salary" | "values";
 type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
 
@@ -154,6 +174,28 @@ const providerLabels: Record<LlmProvider, string> = {
   gemini: "Gemini / Google AI",
   custom: "Custom endpoint",
 };
+const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
+  title: "Title",
+  subTitle: "Sub-title",
+  dates: "Dates",
+  textParagraph: "Text (paragraph)",
+  textList: "Text (list)",
+  scoreNumeric: "Score (1–5)",
+  scoreLevel: "Score (Low/Medium/High)",
+};
+
+const DEFAULT_SECTION_TEMPLATES: {
+  id: string;
+  label: string;
+  fieldTypes: CustomFieldType[];
+}[] = [
+  { id: "personal-details", label: "Personal details", fieldTypes: ["title", "subTitle", "textParagraph"] },
+  { id: "profile", label: "Profile", fieldTypes: ["title", "textParagraph"] },
+  { id: "professional-experience", label: "Professional experience", fieldTypes: ["title", "subTitle", "dates", "textList"] },
+  { id: "skills", label: "Skills", fieldTypes: ["title", "scoreNumeric", "scoreLevel"] },
+  { id: "education", label: "Education", fieldTypes: ["title", "subTitle", "dates", "textParagraph"] },
+  { id: "languages", label: "Languages", fieldTypes: ["title", "scoreLevel"] },
+];
 
 const initialResume: ResumeData = {
   fullName: "",
@@ -214,6 +256,29 @@ function normalizeHistory(
   });
 }
 
+function makeCustomSectionField(type: CustomFieldType, label?: string): CustomSectionField {
+  const baseLabel = label || CUSTOM_FIELD_TYPE_LABELS[type];
+  if (type === "textList") {
+    return { id: uuidv4(), type, label: baseLabel, value: "", items: [""] };
+  }
+  if (type === "dates") {
+    return {
+      id: uuidv4(),
+      type,
+      label: baseLabel,
+      value: "",
+      secondaryValue: "",
+    };
+  }
+  if (type === "scoreNumeric") {
+    return { id: uuidv4(), type, label: baseLabel, value: "3" };
+  }
+  if (type === "scoreLevel") {
+    return { id: uuidv4(), type, label: baseLabel, value: "Medium" };
+  }
+  return { id: uuidv4(), type, label: baseLabel, value: "" };
+}
+
 function App() {
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
@@ -255,7 +320,12 @@ function App() {
     { id: "pd-linkedin", label: "LinkedIn", value: "" },
   ]);
   const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
-  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
+  const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionField[]>>({});
+  const [addSectionModalOpen, setAddSectionModalOpen] = useState(false);
+  const [sectionCreationMode, setSectionCreationMode] = useState<"template" | "custom">("template");
+  const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SECTION_TEMPLATES[0].id);
+  const [customSectionTitleDraft, setCustomSectionTitleDraft] = useState("New Section");
+  const [customFieldBlueprints, setCustomFieldBlueprints] = useState<CustomFieldBlueprint[]>([]);
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
@@ -957,13 +1027,56 @@ function App() {
       return next;
     });
   }
-  function addCustomSection() {
-    const id = `custom-${uuidv4()}`;
-    setSections((prev) => [...prev, { id, label: "New Section", visible: true }]);
-    setCustomSectionContents((prev) => ({
+  function openAddSectionModal() {
+    setAddSectionModalOpen(true);
+    setSectionCreationMode("template");
+    setSelectedTemplateId(DEFAULT_SECTION_TEMPLATES[0].id);
+    setCustomSectionTitleDraft("New Section");
+    setCustomFieldBlueprints([]);
+  }
+  function addBlueprintField(type: CustomFieldType) {
+    setCustomFieldBlueprints((prev) => [
       ...prev,
-      [id]: [{ id: uuidv4(), title: "", content: "" }],
-    }));
+      { id: uuidv4(), type, label: CUSTOM_FIELD_TYPE_LABELS[type] },
+    ]);
+  }
+  function updateBlueprintLabel(id: string, label: string) {
+    setCustomFieldBlueprints((prev) => prev.map((field) => (field.id === id ? { ...field, label } : field)));
+  }
+  function moveBlueprintField(id: string, direction: -1 | 1) {
+    setCustomFieldBlueprints((prev) => {
+      const currentIndex = prev.findIndex((field) => field.id === id);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [item] = next.splice(currentIndex, 1);
+      next.splice(targetIndex, 0, item);
+      return next;
+    });
+  }
+  function removeBlueprintField(id: string) {
+    setCustomFieldBlueprints((prev) => prev.filter((field) => field.id !== id));
+  }
+  function createSectionFromAddModal() {
+    const id = `custom-${uuidv4()}`;
+    if (sectionCreationMode === "template") {
+      const template = DEFAULT_SECTION_TEMPLATES.find((entry) => entry.id === selectedTemplateId) || DEFAULT_SECTION_TEMPLATES[0];
+      setSections((prev) => [...prev, { id, label: template.label, visible: true }]);
+      setCustomSectionContents((prev) => ({
+        ...prev,
+        [id]: template.fieldTypes.map((type) => makeCustomSectionField(type)),
+      }));
+    } else {
+      const builtFields = customFieldBlueprints.length
+        ? customFieldBlueprints.map((field) => makeCustomSectionField(field.type, field.label.trim() || CUSTOM_FIELD_TYPE_LABELS[field.type]))
+        : [makeCustomSectionField("textParagraph")];
+      setSections((prev) => [...prev, { id, label: customSectionTitleDraft.trim() || "New Section", visible: true }]);
+      setCustomSectionContents((prev) => ({
+        ...prev,
+        [id]: builtFields,
+      }));
+    }
+    setAddSectionModalOpen(false);
     openSectionEditor(id);
     setEditingLabelId(id);
   }
@@ -1011,22 +1124,62 @@ function App() {
   function removeSkillEntry(id: string) {
     setSkillEntries((prev) => prev.filter((e) => e.id !== id));
   }
-  function addCustomSectionEntry(sectionId: string) {
+  function addCustomSectionField(sectionId: string, type: CustomFieldType) {
     setCustomSectionContents((prev) => ({
       ...prev,
-      [sectionId]: [...(prev[sectionId] || []), { id: uuidv4(), title: "", content: "" }],
+      [sectionId]: [...(prev[sectionId] || []), makeCustomSectionField(type)],
     }));
   }
-  function updateCustomSectionEntry(sectionId: string, entryId: string, field: keyof CustomSectionEntry, value: string) {
+  function updateCustomSectionField(sectionId: string, fieldId: string, patch: Partial<CustomSectionField>) {
     setCustomSectionContents((prev) => ({
       ...prev,
-      [sectionId]: (prev[sectionId] || []).map((e) => (e.id === entryId ? { ...e, [field]: value } : e)),
+      [sectionId]: (prev[sectionId] || []).map((field) => (field.id === fieldId ? { ...field, ...patch } : field)),
     }));
   }
-  function removeCustomSectionEntry(sectionId: string, entryId: string) {
+  function updateCustomSectionListItem(sectionId: string, fieldId: string, itemIndex: number, value: string) {
     setCustomSectionContents((prev) => ({
       ...prev,
-      [sectionId]: (prev[sectionId] || []).filter((e) => e.id !== entryId),
+      [sectionId]: (prev[sectionId] || []).map((field) => {
+        if (field.id !== fieldId) return field;
+        const nextItems = [...(field.items || [""])];
+        nextItems[itemIndex] = value;
+        return { ...field, items: nextItems };
+      }),
+    }));
+  }
+  function addCustomSectionListItem(sectionId: string, fieldId: string) {
+    setCustomSectionContents((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] || []).map((field) =>
+        field.id === fieldId ? { ...field, items: [...(field.items || []), ""] } : field,
+      ),
+    }));
+  }
+  function removeCustomSectionListItem(sectionId: string, fieldId: string, itemIndex: number) {
+    setCustomSectionContents((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] || []).map((field) => {
+        if (field.id !== fieldId) return field;
+        return { ...field, items: (field.items || []).filter((_, i) => i !== itemIndex) };
+      }),
+    }));
+  }
+  function moveCustomSectionField(sectionId: string, fieldId: string, direction: -1 | 1) {
+    setCustomSectionContents((prev) => {
+      const fields = prev[sectionId] || [];
+      const currentIndex = fields.findIndex((field) => field.id === fieldId);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= fields.length) return prev;
+      const nextFields = [...fields];
+      const [field] = nextFields.splice(currentIndex, 1);
+      nextFields.splice(targetIndex, 0, field);
+      return { ...prev, [sectionId]: nextFields };
+    });
+  }
+  function removeCustomSectionField(sectionId: string, fieldId: string) {
+    setCustomSectionContents((prev) => ({
+      ...prev,
+      [sectionId]: (prev[sectionId] || []).filter((field) => field.id !== fieldId),
     }));
   }
   function startEditingResume() {
@@ -1119,7 +1272,7 @@ function App() {
           if (activeSectionId.startsWith("custom-")) {
             setCustomSectionContents((prev) => ({
               ...prev,
-              [activeSectionId]: [{ id: uuidv4(), title: "", content: "" }],
+              [activeSectionId]: [makeCustomSectionField("textParagraph")],
             }));
           }
           return prev;
@@ -1507,7 +1660,7 @@ function App() {
                     <div className="section-manager-header">
                       <button
                         className="add-section-btn"
-                        onClick={addCustomSection}
+                        onClick={openAddSectionModal}
                         title="Add section"
                         aria-label="Add section"
                       >
@@ -1515,6 +1668,55 @@ function App() {
                       </button>
                       <h4>Sections</h4>
                     </div>
+                    {addSectionModalOpen && (
+                      <div className="add-section-modal">
+                        <div className="add-section-modal-header">
+                          <h5>Add Section</h5>
+                          <button onClick={() => setAddSectionModalOpen(false)}>✕</button>
+                        </div>
+                        <div className="add-section-mode-row">
+                          <button className={sectionCreationMode === "template" ? "active" : ""} onClick={() => setSectionCreationMode("template")}>Default templates</button>
+                          <button className={sectionCreationMode === "custom" ? "active" : ""} onClick={() => setSectionCreationMode("custom")}>Custom builder</button>
+                        </div>
+                        {sectionCreationMode === "template" ? (
+                          <div className="add-section-template-grid">
+                            {DEFAULT_SECTION_TEMPLATES.map((templateOption) => (
+                              <label key={templateOption.id} className="template-option-row">
+                                <input
+                                  type="radio"
+                                  checked={selectedTemplateId === templateOption.id}
+                                  onChange={() => setSelectedTemplateId(templateOption.id)}
+                                />
+                                <span>{templateOption.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="structured-editor-list">
+                            <input value={customSectionTitleDraft} onChange={(e) => setCustomSectionTitleDraft(e.target.value)} placeholder="Section title" />
+                            <div className="custom-field-add-row">
+                              {(Object.keys(CUSTOM_FIELD_TYPE_LABELS) as CustomFieldType[]).map((type) => (
+                                <button key={type} className="small-action" onClick={() => addBlueprintField(type)}>
+                                  + {CUSTOM_FIELD_TYPE_LABELS[type]}
+                                </button>
+                              ))}
+                            </div>
+                            {customFieldBlueprints.map((field, index, arr) => (
+                              <div key={field.id} className="template-option-row custom-blueprint-row">
+                                <span>{CUSTOM_FIELD_TYPE_LABELS[field.type]}</span>
+                                <input value={field.label} onChange={(e) => updateBlueprintLabel(field.id, e.target.value)} />
+                                <button onClick={() => moveBlueprintField(field.id, -1)} disabled={index === 0}>↑</button>
+                                <button onClick={() => moveBlueprintField(field.id, 1)} disabled={index === arr.length - 1}>↓</button>
+                                <button className="remove-entry-btn" onClick={() => removeBlueprintField(field.id)}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="add-section-modal-footer">
+                          <button className="primary" onClick={createSectionFromAddModal}>Add section</button>
+                        </div>
+                      </div>
+                    )}
                     <div
                       className="section-manager-list"
                       onDragOver={(e) => e.preventDefault()}
@@ -1832,38 +2034,64 @@ function App() {
                       {/* Custom sections */}
                       {activeSectionId.startsWith("custom-") && (
                         <div className="structured-editor-list">
-                          <button className="small-action add-entry-top-btn" onClick={() => addCustomSectionEntry(activeSectionId)}>
-                            + Add entry
-                          </button>
-                          {(customSectionContents[activeSectionId] || []).map((entry) => (
-                            <div key={entry.id} className="entry-box">
+                          <div className="custom-field-add-row">
+                            {(Object.keys(CUSTOM_FIELD_TYPE_LABELS) as CustomFieldType[]).map((type) => (
+                              <button key={type} className="small-action" onClick={() => addCustomSectionField(activeSectionId, type)}>
+                                + {CUSTOM_FIELD_TYPE_LABELS[type]}
+                              </button>
+                            ))}
+                          </div>
+                          {(customSectionContents[activeSectionId] || []).map((field, index, arr) => (
+                            <div key={field.id} className="entry-box">
                               <div className="entry-box-header">
-                                <span className="entry-box-type">Entry</span>
-                                <button className="remove-entry-btn" onClick={() => removeCustomSectionEntry(activeSectionId, entry.id)} title="Remove">✕</button>
+                                <span className="entry-box-type">{CUSTOM_FIELD_TYPE_LABELS[field.type]}</span>
+                                <div className="entry-box-actions">
+                                  <button onClick={() => moveCustomSectionField(activeSectionId, field.id, -1)} disabled={index === 0}>↑</button>
+                                  <button onClick={() => moveCustomSectionField(activeSectionId, field.id, 1)} disabled={index === arr.length - 1}>↓</button>
+                                  <button className="remove-entry-btn" onClick={() => removeCustomSectionField(activeSectionId, field.id)} title="Remove">✕</button>
+                                </div>
                               </div>
                               <input
-                                value={entry.title}
-                                placeholder="Title"
-                                onChange={(e) => updateCustomSectionEntry(activeSectionId, entry.id, "title", e.target.value)}
+                                value={field.label}
+                                placeholder="Field label"
+                                onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { label: e.target.value })}
                               />
-                              <div className="editor-toolbar-strip">
-                                <button onClick={() => applyRichCommand("bold")}><strong>B</strong></button>
-                                <button onClick={() => applyRichCommand("italic")}><em>I</em></button>
-                                <button onClick={() => applyRichCommand("underline")}><u>U</u></button>
-                                <button onClick={() => applyRichCommand("justifyLeft")}>⬛</button>
-                                <button onClick={() => applyRichCommand("justifyCenter")}>≡</button>
-                                <button onClick={() => applyRichCommand("justifyRight")}>⬜</button>
-                                <button onClick={() => applyRichCommand("insertUnorderedList")}>• List</button>
-                                <button onClick={() => document.execCommand("insertOrderedList", false)}>1. List</button>
-                                <button onClick={() => applyRichCommand("createLink")}>🔗</button>
-                              </div>
-                              <textarea
-                                className="manual-editor-box"
-                                value={entry.content}
-                                placeholder="Description…"
-                                rows={4}
-                                onChange={(e) => updateCustomSectionEntry(activeSectionId, entry.id, "content", e.target.value)}
-                              />
+                              {field.type === "dates" && (
+                                <div className="date-fields-row">
+                                  <input value={field.value} placeholder="Start date" onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { value: e.target.value })} />
+                                  <input value={field.secondaryValue || ""} placeholder="End date" onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { secondaryValue: e.target.value })} />
+                                </div>
+                              )}
+                              {field.type === "scoreNumeric" && (
+                                <input type="number" min={1} max={5} value={field.value} onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { value: e.target.value })} />
+                              )}
+                              {field.type === "scoreLevel" && (
+                                <select value={field.value} onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { value: e.target.value })}>
+                                  <option>Low</option>
+                                  <option>Medium</option>
+                                  <option>High</option>
+                                </select>
+                              )}
+                              {field.type === "textList" && (
+                                <div className="structured-editor-list">
+                                  {(field.items || [""]).map((item, itemIndex) => (
+                                    <div key={`${field.id}-${itemIndex}`} className="structured-editor-row text-list-row">
+                                      <input value={item} placeholder={`List item ${itemIndex + 1}`} onChange={(e) => updateCustomSectionListItem(activeSectionId, field.id, itemIndex, e.target.value)} />
+                                      <button className="remove-field-btn" onClick={() => removeCustomSectionListItem(activeSectionId, field.id, itemIndex)} title="Remove">−</button>
+                                    </div>
+                                  ))}
+                                  <button className="small-action" onClick={() => addCustomSectionListItem(activeSectionId, field.id)}>+ Add list item</button>
+                                </div>
+                              )}
+                              {field.type !== "dates" && field.type !== "scoreNumeric" && field.type !== "scoreLevel" && field.type !== "textList" && (
+                                <textarea
+                                  className="manual-editor-box"
+                                  value={field.value}
+                                  placeholder="Value"
+                                  rows={field.type === "textParagraph" ? 4 : 2}
+                                  onChange={(e) => updateCustomSectionField(activeSectionId, field.id, { value: e.target.value })}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -2110,12 +2338,35 @@ function App() {
                                 {section.label}
                                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                               </h4>
-                              {customEntries.map((entry) => (
-                                <div key={entry.id}>
-                                  {entry.title && <p className="preview-text" style={{ fontWeight: 700, marginBottom: "0.2rem" }}>{entry.title}</p>}
-                                  {entry.content && <p className="preview-text">{entry.content}</p>}
-                                </div>
-                              ))}
+                              {customEntries.map((field) => {
+                                if (field.type === "title") {
+                                  return <p key={field.id} className="preview-text" style={{ fontWeight: 700, marginBottom: "0.2rem" }}>{field.value || field.label}</p>;
+                                }
+                                if (field.type === "subTitle") {
+                                  return <p key={field.id} className="preview-text" style={{ fontWeight: 600 }}>{field.value || field.label}</p>;
+                                }
+                                if (field.type === "dates") {
+                                  return <p key={field.id} className="preview-text">{field.label}: {field.value || "Start"} — {field.secondaryValue || "End"}</p>;
+                                }
+                                if (field.type === "textList") {
+                                  return (
+                                    <div key={field.id}>
+                                      {field.label && <p className="preview-text" style={{ fontWeight: 600 }}>{field.label}</p>}
+                                      {(field.items || []).filter(Boolean).map((item) => (
+                                        <p key={`${field.id}-${item}`} className="preview-bullet">• {item}</p>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                if (field.type === "scoreNumeric") {
+                                  const numericScore = Math.min(5, Math.max(1, Number(field.value) || 1));
+                                  return <p key={field.id} className="preview-text">{field.label}: {"★".repeat(numericScore)}{"☆".repeat(5 - numericScore)} ({numericScore}/5)</p>;
+                                }
+                                if (field.type === "scoreLevel") {
+                                  return <p key={field.id} className="preview-text">{field.label}: {field.value || "Medium"}</p>;
+                                }
+                                return <p key={field.id} className="preview-text">{field.value}</p>;
+                              })}
                             </div>
                           );
                         })}
