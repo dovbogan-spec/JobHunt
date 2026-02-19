@@ -513,11 +513,9 @@ textarea {
 
 .preview-toolbar {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  justify-content: flex-end;
   position: absolute;
   top: 1.2rem;
-  left: 1.2rem;
   right: 1.2rem;
   z-index: 2;
   pointer-events: none;
@@ -554,6 +552,8 @@ textarea {
   display: grid;
   gap: 0.5rem;
   background: var(--editor-surface-muted);
+.toolbar-fullscreen {
+  pointer-events: auto;
 }
 
 .section-manager-panel {
@@ -600,6 +600,74 @@ textarea {
 
 .add-section-btn:hover {
   background: var(--editor-accent-strong);
+}
+
+.add-section-modal {
+  border: 1px solid #cde2d6;
+  border-radius: 0.8rem;
+  background: #f8fcf9;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.add-section-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.add-section-modal-header h5 {
+  margin: 0;
+}
+
+.add-section-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.add-section-mode-row button.active {
+  background: #2f855a;
+  color: #fff;
+  border-color: #2f855a;
+}
+
+.add-section-template-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.template-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.custom-blueprint-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+}
+
+.add-section-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.custom-field-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.entry-box-actions {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.text-list-row {
+  grid-template-columns: 1fr auto;
+  align-items: center;
 }
 
 .section-manager-list {
@@ -709,6 +777,50 @@ textarea {
   min-width: 40px;
 }
 
+
+.reorderable-item {
+  position: relative;
+}
+
+.reorderable-item:focus-visible {
+  outline: 3px solid #2f855a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(47, 133, 90, 0.2);
+}
+
+.reorderable-item.is-grabbed {
+  border-color: #2f855a;
+  background: #e9f7ef;
+}
+
+.reorderable-item.drag-over {
+  border-color: #3f9969;
+  box-shadow: 0 0 0 2px rgba(63, 153, 105, 0.35);
+}
+
+.reorder-controls {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.reorder-controls button {
+  min-height: 28px;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .section-picker-header {
   display: flex;
   align-items: center;
@@ -747,6 +859,12 @@ textarea {
 .focused-editor-header h4,
 .focused-editor-kicker {
   margin: 0;
+}
+
+.focused-editor-header h4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .focused-editor-kicker {
@@ -797,9 +915,37 @@ textarea {
 .focused-editor-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.45rem;
   padding-top: 0.25rem;
   border-top: 1px solid var(--editor-border);
+}
+
+.section-save-confirmation {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #2e7d32;
+  background: #eaf7ee;
+  border: 1px solid #bfe3c6;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  animation: section-save-confirm-in 240ms ease-out;
+}
+
+.footer-confirmation {
+  margin-right: auto;
+}
+
+@keyframes section-save-confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .top-section-row {
@@ -817,19 +963,6 @@ textarea {
   align-items: start;
   justify-items: stretch;
   height: 100%;
-}
-
-.pdf-preview-mode {
-  background: #ececec;
-}
-
-.pdf-preview-mode .preview-content {
-  background: #fff;
-  margin: 0 auto;
-  width: min(100%, 794px);
-  min-height: 1123px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  padding: 2rem;
 }
 
 .resume-preview.is-fullscreen .preview-frame {
