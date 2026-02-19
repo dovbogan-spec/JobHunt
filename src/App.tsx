@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
+import { MODEL_CATALOG, getDefaultModel, getModelsForProvider, type LlmProvider as CatalogLlmProvider } from "./config/modelDefinitions";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -68,7 +69,7 @@ type CustomFieldBlueprint = {
   label: string;
 };
 type InsightTab = "soft" | "hard" | "reviews" | "salary" | "values";
-type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
+type LlmProvider = CatalogLlmProvider;
 
 type ExperienceItem = {
   id: string;
@@ -212,13 +213,9 @@ const TEMPLATES: TemplateName[] = [
 ];
 const LLM_SETTINGS_STORAGE_KEY = "job-hunt-llm-settings";
 const RESUME_DRAFT_STORAGE_KEY = "job-hunt-resume-draft";
-const providerLabels: Record<LlmProvider, string> = {
-  openai: "ChatGPT / OpenAI",
-  anthropic: "Claude / Anthropic",
-  azureOpenai: "Copilot / Azure OpenAI",
-  gemini: "Gemini / Google AI",
-  custom: "Custom endpoint",
-};
+const providerLabels: Record<LlmProvider, string> = Object.fromEntries(
+  (Object.keys(MODEL_CATALOG) as LlmProvider[]).map((p) => [p, MODEL_CATALOG[p].label]),
+) as Record<LlmProvider, string>;
 const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
   title: "Title",
   subTitle: "Sub-title",
@@ -276,7 +273,7 @@ const initialResume: ResumeData = {
 const defaultLlmSettings: LlmSettings = {
   enabled: false,
   provider: "openai",
-  model: "gpt-4o-mini",
+  model: getDefaultModel("openai"),
   endpoint: "",
   organizationId: "",
   azureApiVersion: "2024-10-21",
@@ -467,6 +464,51 @@ function moveArrayItemById<T extends { id: string }>(items: T[], fromId: string,
   return moveArrayItem(items, fromIndex, toIndex);
 }
 
+function ModelStatusBadge({ status }: { status: ConnectivityStatus | undefined }) {
+  if (status === "success") return <span className="model-status-ok" aria-label="connected">✓</span>;
+  if (status === "error") return <span className="model-status-err" aria-label="not connected">✗</span>;
+  if (status === "testing") return <span className="model-status-testing" aria-label="testing">…</span>;
+  return null;
+}
+
+type ModelPickerProps = {
+  provider: LlmProvider;
+  open: boolean;
+  statusMap: Partial<Record<LlmProvider, ConnectivityStatus>>;
+  onToggle: () => void;
+  onSelect: (provider: LlmProvider) => void;
+};
+
+function ModelPickerDropdown({ provider, open, statusMap, onToggle, onSelect }: ModelPickerProps) {
+  const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
+  return (
+    <div className="model-picker-wrapper">
+      <button
+        className={"small-action model-picker-btn" + (open ? " active" : "")}
+        onClick={onToggle}
+        title="Switch AI model"
+      >
+        {"🤖 " + providerLabels[provider] + " "}
+        <ModelStatusBadge status={statusMap[provider]} />
+      </button>
+      {open && (
+        <div className="model-picker-dropdown">
+          {providers.map((p) => (
+            <button
+              key={p}
+              className={"model-picker-option" + (provider === p ? " selected" : "")}
+              onClick={() => onSelect(p)}
+            >
+              <span className="model-picker-label">{providerLabels[p]}</span>
+              <ModelStatusBadge status={statusMap[p]} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const initialDraftSnapshot = readDraftSnapshot();
   const [tab, setTab] = useState<TabName>("resume");
@@ -596,6 +638,8 @@ function App() {
     useState<ConnectivityStatus>("idle");
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
   const [byokEnabled, setByokEnabled] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const previewRef = useRef<HTMLElement | null>(null);
   const richTextEditorRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
@@ -824,12 +868,44 @@ function App() {
       }
 
       setConnectivityStatus("success");
+      setModelStatusMap((prev) => ({ ...prev, [provider]: "success" }));
     } catch (error) {
       setConnectivityStatus("error");
       setConnectivityErrorCode(
         error instanceof Error ? error.message : "PING_FAILED",
       );
+      const { provider } = getLlmConnectionInfo(llmSettings);
+      setModelStatusMap((prev) => ({ ...prev, [provider]: "error" }));
     }
+  }
+
+  async function pingProvider(provider: LlmProvider): Promise<boolean> {
+    const model = getDefaultModel(provider);
+    try {
+      const response = await fetch("/api/llm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, model, messages: [{ role: "user", content: "ping" }] }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function pingAllProviders() {
+    const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
+    setModelStatusMap((prev) => {
+      const next = { ...prev };
+      for (const p of providers) next[p] = "testing";
+      return next;
+    });
+    const results = await Promise.all(providers.map((p) => pingProvider(p)));
+    setModelStatusMap((prev) => {
+      const next = { ...prev };
+      providers.forEach((p, i) => { next[p] = results[i] ? "success" : "error"; });
+      return next;
+    });
   }
 
   async function callModel(
@@ -1787,12 +1863,25 @@ function App() {
         <h1>🌿 Job Hunter</h1>
         <div className="header-actions">
           {byokEnabled && (
-            <button
-              className={`small-action ${tab === "llmIntegration" ? "active" : ""}`}
-              onClick={() => setTab("llmIntegration")}
-            >
-              🤖 Model API
-            </button>
+            <ModelPickerDropdown
+              provider={llmSettings.provider}
+              open={modelPickerOpen}
+              statusMap={modelStatusMap}
+              onToggle={() => {
+                const opening = !modelPickerOpen;
+                setModelPickerOpen(opening);
+                if (opening) pingAllProviders();
+              }}
+              onSelect={(p) => {
+                setLlmSettings((prev) => ({
+                  ...prev,
+                  provider: p,
+                  model: getDefaultModel(p),
+                  endpoint: MODEL_CATALOG[p].defaultEndpoint,
+                }));
+                setModelPickerOpen(false);
+              }}
+            />
           )}
           <button className="small-action" onClick={downloadResumePdf}>
             📥 Download PDF
@@ -3057,12 +3146,15 @@ function App() {
                     <span>Provider</span>
                     <select
                       value={llmSettings.provider}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const newProvider = e.target.value as LlmProvider;
                         setLlmSettings((prev) => ({
                           ...prev,
-                          provider: e.target.value as LlmProvider,
-                        }))
-                      }
+                          provider: newProvider,
+                          model: getDefaultModel(newProvider),
+                          endpoint: MODEL_CATALOG[newProvider].defaultEndpoint,
+                        }));
+                      }}
                     >
                       {(Object.keys(providerLabels) as LlmProvider[]).map(
                         (provider) => (
@@ -3075,7 +3167,7 @@ function App() {
                   </label>
                   <label>
                     <span>Model</span>
-                    <input
+                    <select
                       value={llmSettings.model}
                       onChange={(e) =>
                         setLlmSettings((prev) => ({
@@ -3083,8 +3175,13 @@ function App() {
                           model: e.target.value,
                         }))
                       }
-                      placeholder="Model name"
-                    />
+                    >
+                      {getModelsForProvider(llmSettings.provider).map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>Endpoint URL</span>
