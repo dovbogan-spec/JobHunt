@@ -557,6 +557,74 @@ textarea {
   background: #22693f;
 }
 
+.add-section-modal {
+  border: 1px solid #cde2d6;
+  border-radius: 0.8rem;
+  background: #f8fcf9;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.add-section-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.add-section-modal-header h5 {
+  margin: 0;
+}
+
+.add-section-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.add-section-mode-row button.active {
+  background: #2f855a;
+  color: #fff;
+  border-color: #2f855a;
+}
+
+.add-section-template-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.template-option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.custom-blueprint-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+}
+
+.add-section-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.custom-field-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.entry-box-actions {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.text-list-row {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
 .section-manager-list {
   overflow: auto;
   display: grid;
