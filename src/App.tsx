@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
@@ -96,6 +96,8 @@ type ExperienceEditorItem = {
   id: string;
   fields: ExperienceEditorField[];
 };
+type DragState = { listId: string; itemId: string } | null;
+type GrabState = { listId: string; itemId: string; label: string } | null;
 
 const SKILL_KEYWORDS = [
   "react",
@@ -214,6 +216,28 @@ function normalizeHistory(
   });
 }
 
+function moveArrayItem<T>(items: T[], fromIndex: number, toIndex: number): T[] {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return items;
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+function moveArrayItemById<T extends { id: string }>(items: T[], fromId: string, toId: string): T[] {
+  const fromIndex = items.findIndex((item) => item.id === fromId);
+  const toIndex = items.findIndex((item) => item.id === toId);
+  return moveArrayItem(items, fromIndex, toIndex);
+}
+
 function App() {
   const [tab, setTab] = useState<TabName>("resume");
   const [jobText, setJobText] = useState("");
@@ -244,8 +268,10 @@ function App() {
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
   const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
-  const [draggingSection, setDraggingSection] = useState<string | null>(null);
-  const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState>(null);
+  const [dropTarget, setDropTarget] = useState<DragState>(null);
+  const [grabState, setGrabState] = useState<GrabState>(null);
+  const [reorderLiveMessage, setReorderLiveMessage] = useState("");
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>([
     { id: "pd-fullname", label: "Full Name", value: "" },
@@ -946,16 +972,70 @@ function App() {
       ),
     );
   }
+  function announceReorder(message: string) {
+    setReorderLiveMessage(message);
+  }
+
+  function moveSections(fromIndex: number, toIndex: number) {
+    setSections((prev) => moveArrayItem(prev, fromIndex, toIndex));
+  }
+
   function reorderSection(fromId: string, toId: string) {
-    setSections((prev) => {
-      const fromIndex = prev.findIndex((s) => s.id === fromId);
-      const toIndex = prev.findIndex((s) => s.id === toId);
-      if (fromIndex < 0 || toIndex < 0) return prev;
-      const next = [...prev];
-      const [removed] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, removed);
-      return next;
-    });
+    setSections((prev) => moveArrayItemById(prev, fromId, toId));
+  }
+
+  function moveExperienceEntries(fromIndex: number, toIndex: number) {
+    setEditorDraft((prev) => ({ ...prev, selectedExperience: moveArrayItem(prev.selectedExperience, fromIndex, toIndex) }));
+  }
+
+  function moveSkillEntries(fromIndex: number, toIndex: number) {
+    setSkillEntries((prev) => moveArrayItem(prev, fromIndex, toIndex));
+  }
+
+  function moveDraftListEntries(key: "education" | "languages" | "interests", fromIndex: number, toIndex: number) {
+    setEditorDraft((prev) => ({ ...prev, [key]: moveArrayItem(prev[key], fromIndex, toIndex) }));
+  }
+
+  function moveCustomSectionEntry(sectionId: string, fromIndex: number, toIndex: number) {
+    setCustomSectionContents((prev) => ({
+      ...prev,
+      [sectionId]: moveArrayItem(prev[sectionId] || [], fromIndex, toIndex),
+    }));
+  }
+
+  function handleReorderKeyDown(
+    event: KeyboardEvent<HTMLElement>,
+    params: {
+      listId: string;
+      itemId: string;
+      index: number;
+      total: number;
+      label: string;
+      onMove: (fromIndex: number, toIndex: number) => void;
+    },
+  ) {
+    const { listId, itemId, index, total, label, onMove } = params;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (grabState?.listId === listId && grabState.itemId === itemId) {
+        setGrabState(null);
+        announceReorder(`Dropped ${label}.`);
+        return;
+      }
+      setGrabState({ listId, itemId, label });
+      announceReorder(`Grabbed ${label}. Use arrow keys to move and Enter or Space to drop.`);
+      return;
+    }
+
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (!(grabState?.listId === listId && grabState.itemId === itemId)) return;
+
+    event.preventDefault();
+    const direction = event.key === "ArrowUp" ? -1 : 1;
+    const toIndex = Math.max(0, Math.min(total - 1, index + direction));
+    if (toIndex === index) return;
+    onMove(index, toIndex);
+    announceReorder(`Moved ${label} to position ${toIndex + 1} of ${total}.`);
   }
   function addCustomSection() {
     const id = `custom-${uuidv4()}`;
@@ -1515,67 +1595,105 @@ function App() {
                       </button>
                       <h4>Sections</h4>
                     </div>
+                    <p className="sr-only" aria-live="polite">{reorderLiveMessage}</p>
                     <div
                       className="section-manager-list"
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      {sections.map((section) => (
-                        <div
-                          key={section.id}
-                          className={`section-manager-row ${activeSectionId === section.id && editMode ? "active" : ""} ${!section.visible ? "is-hidden" : ""} ${sectionDragOver === section.id ? "drag-over" : ""}`}
-                          draggable
-                          onDragStart={() => setDraggingSection(section.id)}
-                          onDragOver={(e) => { e.preventDefault(); setSectionDragOver(section.id); }}
-                          onDragLeave={() => setSectionDragOver(null)}
-                          onDrop={() => {
-                            if (draggingSection && draggingSection !== section.id) {
-                              reorderSection(draggingSection, section.id);
+                      {sections.map((section, index) => {
+                        const listId = "sections";
+                        const isGrabbed = grabState?.listId === listId && grabState.itemId === section.id;
+                        const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === section.id;
+                        return (
+                          <div
+                            key={section.id}
+                            className={`section-manager-row reorderable-item ${activeSectionId === section.id && editMode ? "active" : ""} ${!section.visible ? "is-hidden" : ""} ${isDropTarget ? "drag-over" : ""} ${isGrabbed ? "is-grabbed" : ""}`}
+                            draggable
+                            tabIndex={0}
+                            aria-grabbed={isGrabbed}
+                            aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                            onKeyDown={(event) =>
+                              handleReorderKeyDown(event, {
+                                listId,
+                                itemId: section.id,
+                                index,
+                                total: sections.length,
+                                label: section.label || `Section ${index + 1}`,
+                                onMove: moveSections,
+                              })
                             }
-                            setDraggingSection(null);
-                            setSectionDragOver(null);
-                          }}
-                          onDragEnd={() => { setDraggingSection(null); setSectionDragOver(null); }}
-                        >
-                          <span className="section-drag-handle" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
-                          <button
-                            className="section-pencil-btn"
-                            onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}
-                            title={`Rename ${section.label}`}
-                            aria-label={`Rename ${section.label} section`}
+                            onDragStart={() => setDragState({ listId, itemId: section.id })}
+                            onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: section.id }); }}
+                            onDragLeave={() => setDropTarget(null)}
+                            onDrop={() => {
+                              if (dragState?.listId === listId && dragState.itemId !== section.id) {
+                                reorderSection(dragState.itemId, section.id);
+                                announceReorder(`Moved ${section.label} section.`);
+                              }
+                              setDragState(null);
+                              setDropTarget(null);
+                            }}
+                            onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                           >
-                            ✏️
-                          </button>
-                          {editingLabelId === section.id && !editMode ? (
-                            <input
-                              className="section-label-edit-input"
-                              value={section.label}
-                              autoFocus
-                              onChange={(e) => updateSectionLabel(section.id, e.target.value)}
-                              onBlur={() => setEditingLabelId(null)}
-                              onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span
-                              className="section-row-label"
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => openSectionEditor(section.id)}
-                              onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                            <span className="section-drag-handle" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+                            <button
+                              className="section-pencil-btn"
+                              onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}
+                              title={`Rename ${section.label}`}
+                              aria-label={`Rename ${section.label} section`}
                             >
-                              {section.label || "Untitled section"}
-                            </span>
-                          )}
-                          <button
-                            className="section-visibility-btn"
-                            onClick={() => toggleSection(section.id)}
-                            title={section.visible ? "Hide section" : "Show section"}
-                            aria-label={section.visible ? "Hide section" : "Show section"}
-                          >
-                            {section.visible ? "👁" : "🚫"}
-                          </button>
-                        </div>
-                      ))}
+                              ✏️
+                            </button>
+                            {editingLabelId === section.id && !editMode ? (
+                              <input
+                                className="section-label-edit-input"
+                                value={section.label}
+                                autoFocus
+                                onChange={(e) => updateSectionLabel(section.id, e.target.value)}
+                                onBlur={() => setEditingLabelId(null)}
+                                onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span
+                                className="section-row-label"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openSectionEditor(section.id)}
+                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
+                              >
+                                {section.label || "Untitled section"}
+                              </span>
+                            )}
+                            <div className="reorder-controls">
+                              <button
+                                type="button"
+                                onClick={() => moveSections(index, Math.max(0, index - 1))}
+                                disabled={index === 0}
+                                aria-label={`Move ${section.label} up`}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveSections(index, Math.min(sections.length - 1, index + 1))}
+                                disabled={index === sections.length - 1}
+                                aria-label={`Move ${section.label} down`}
+                              >
+                                ↓
+                              </button>
+                            </div>
+                            <button
+                              className="section-visibility-btn"
+                              onClick={() => toggleSection(section.id)}
+                              title={section.visible ? "Hide section" : "Show section"}
+                              aria-label={section.visible ? "Hide section" : "Show section"}
+                            >
+                              {section.visible ? "👁" : "🚫"}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   {editMode && activeSection && (
                     <section className="focused-editor-card">
@@ -1691,36 +1809,71 @@ function App() {
                           >
                             + Add experience
                           </button>
-                          {editorDraft.selectedExperience.map((item, index) => (
-                            <div className="structured-editor-row" key={item.id}>
-                              <textarea
-                                className="manual-editor-box"
-                                value={toPlainText(item.text)}
-                                rows={3}
-                                placeholder="Experience bullet point…"
-                                onChange={(e) =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    selectedExperience: prev.selectedExperience.map((si, i) =>
-                                      i === index ? { ...si, text: e.target.value } : si,
-                                    ),
-                                  }))
-                                }
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    selectedExperience: prev.selectedExperience.filter((_, i) => i !== index),
-                                  }))
-                                }
-                                title="Remove"
+                          {editorDraft.selectedExperience.map((item, index) => {
+                            const listId = "experience-entries";
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === item.id;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === item.id;
+                            return (
+                              <div
+                                className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
+                                key={item.id}
+                                draggable
+                                tabIndex={0}
+                                aria-grabbed={isGrabbed}
+                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                                onKeyDown={(event) => handleReorderKeyDown(event, {
+                                  listId,
+                                  itemId: item.id,
+                                  index,
+                                  total: editorDraft.selectedExperience.length,
+                                  label: `Experience entry ${index + 1}`,
+                                  onMove: moveExperienceEntries,
+                                })}
+                                onDragStart={() => setDragState({ listId, itemId: item.id })}
+                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: item.id }); }}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={() => {
+                                  if (dragState?.listId === listId && dragState.itemId !== item.id) {
+                                    setEditorDraft((prev) => ({ ...prev, selectedExperience: moveArrayItemById(prev.selectedExperience, dragState.itemId, item.id) }));
+                                  }
+                                  setDragState(null);
+                                  setDropTarget(null);
+                                }}
+                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
-                                −
-                              </button>
-                            </div>
-                          ))}
+                                <textarea
+                                  className="manual-editor-box"
+                                  value={toPlainText(item.text)}
+                                  rows={3}
+                                  placeholder="Experience bullet point…"
+                                  onChange={(e) =>
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      selectedExperience: prev.selectedExperience.map((si, i) =>
+                                        i === index ? { ...si, text: e.target.value } : si,
+                                      ),
+                                    }))
+                                  }
+                                />
+                                <div className="reorder-controls">
+                                  <button type="button" onClick={() => moveExperienceEntries(index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
+                                  <button type="button" onClick={() => moveExperienceEntries(index, Math.min(editorDraft.selectedExperience.length - 1, index + 1))} disabled={index === editorDraft.selectedExperience.length - 1}>Move Down</button>
+                                </div>
+                                <button
+                                  className="remove-field-btn"
+                                  onClick={() =>
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      selectedExperience: prev.selectedExperience.filter((_, i) => i !== index),
+                                    }))
+                                  }
+                                  title="Remove"
+                                >
+                                  −
+                                </button>
+                              </div>
+                            );
+                          })}
                           {editorDraft.selectedExperience.length === 0 && (
                             <p className="editor-empty-state">No experience entries yet.</p>
                           )}
@@ -1733,24 +1886,59 @@ function App() {
                           <button className="small-action add-entry-top-btn" onClick={addSkillEntry}>
                             + Add skill
                           </button>
-                          {skillEntries.map((entry) => (
-                            <div key={entry.id} className="entry-box skill-entry-box">
-                              <div className="entry-box-header">
-                                <span className="entry-box-type">Skill</span>
-                                <button className="remove-entry-btn" onClick={() => removeSkillEntry(entry.id)} title="Remove">✕</button>
+                          {skillEntries.map((entry, index) => {
+                            const listId = "skills-entries";
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === entry.id;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === entry.id;
+                            return (
+                              <div
+                                key={entry.id}
+                                className={`entry-box skill-entry-box reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
+                                draggable
+                                tabIndex={0}
+                                aria-grabbed={isGrabbed}
+                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                                onKeyDown={(event) => handleReorderKeyDown(event, {
+                                  listId,
+                                  itemId: entry.id,
+                                  index,
+                                  total: skillEntries.length,
+                                  label: entry.name || `Skill ${index + 1}`,
+                                  onMove: moveSkillEntries,
+                                })}
+                                onDragStart={() => setDragState({ listId, itemId: entry.id })}
+                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: entry.id }); }}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={() => {
+                                  if (dragState?.listId === listId && dragState.itemId !== entry.id) {
+                                    setSkillEntries((prev) => moveArrayItemById(prev, dragState.itemId, entry.id));
+                                  }
+                                  setDragState(null);
+                                  setDropTarget(null);
+                                }}
+                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
+                              >
+                                <div className="entry-box-header">
+                                  <span className="entry-box-type">Skill</span>
+                                  <div className="reorder-controls">
+                                    <button type="button" onClick={() => moveSkillEntries(index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
+                                    <button type="button" onClick={() => moveSkillEntries(index, Math.min(skillEntries.length - 1, index + 1))} disabled={index === skillEntries.length - 1}>Move Down</button>
+                                  </div>
+                                  <button className="remove-entry-btn" onClick={() => removeSkillEntry(entry.id)} title="Remove">✕</button>
+                                </div>
+                                <input
+                                  value={entry.name}
+                                  placeholder="Skill name"
+                                  onChange={(e) => updateSkillEntry(entry.id, "name", e.target.value)}
+                                />
+                                <input
+                                  value={entry.level}
+                                  placeholder="Level (e.g. Expert, Intermediate)"
+                                  onChange={(e) => updateSkillEntry(entry.id, "level", e.target.value)}
+                                />
                               </div>
-                              <input
-                                value={entry.name}
-                                placeholder="Skill name"
-                                onChange={(e) => updateSkillEntry(entry.id, "name", e.target.value)}
-                              />
-                              <input
-                                value={entry.level}
-                                placeholder="Level (e.g. Expert, Intermediate)"
-                                onChange={(e) => updateSkillEntry(entry.id, "level", e.target.value)}
-                              />
-                            </div>
-                          ))}
+                            );
+                          })}
                           {skillEntries.length === 0 && (
                             <p className="editor-empty-state">No skills added yet. Empty entries are ignored in the CV.</p>
                           )}
@@ -1760,27 +1948,62 @@ function App() {
                       {/* Education */}
                       {activeSectionId === "education" && (
                         <div className="structured-editor-list">
-                          {editorDraft.education.map((item, index) => (
-                            <div className="structured-editor-row" key={`education-${index}`}>
-                              <input
-                                value={item}
-                                placeholder="e.g. BSc Computer Science, University Name"
-                                onChange={(e) => updateListField("education", index, e.target.value)}
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    education: prev.education.filter((_, i) => i !== index),
-                                  }))
-                                }
-                                title="Remove"
+                          {editorDraft.education.map((item, index) => {
+                            const listId = "education-entries";
+                            const itemId = `education-${index}-${item}`;
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
+                            return (
+                              <div className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
+                                draggable
+                                tabIndex={0}
+                                aria-grabbed={isGrabbed}
+                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                                onKeyDown={(event) => handleReorderKeyDown(event, {
+                                  listId,
+                                  itemId,
+                                  index,
+                                  total: editorDraft.education.length,
+                                  label: `Education entry ${index + 1}`,
+                                  onMove: (from, to) => moveDraftListEntries("education", from, to),
+                                })}
+                                onDragStart={() => setDragState({ listId, itemId })}
+                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId }); }}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={() => {
+                                  if (dragState?.listId === listId) {
+                                    const fromIndex = editorDraft.education.findIndex((value, i) => `education-${i}-${value}` === dragState.itemId);
+                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("education", fromIndex, index);
+                                  }
+                                  setDragState(null);
+                                  setDropTarget(null);
+                                }}
+                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
-                                −
-                              </button>
-                            </div>
-                          ))}
+                                <input
+                                  value={item}
+                                  placeholder="e.g. BSc Computer Science, University Name"
+                                  onChange={(e) => updateListField("education", index, e.target.value)}
+                                />
+                                <div className="reorder-controls">
+                                  <button type="button" onClick={() => moveDraftListEntries("education", index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
+                                  <button type="button" onClick={() => moveDraftListEntries("education", index, Math.min(editorDraft.education.length - 1, index + 1))} disabled={index === editorDraft.education.length - 1}>Move Down</button>
+                                </div>
+                                <button
+                                  className="remove-field-btn"
+                                  onClick={() =>
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      education: prev.education.filter((_, i) => i !== index),
+                                    }))
+                                  }
+                                  title="Remove"
+                                >
+                                  −
+                                </button>
+                              </div>
+                            );
+                          })}
                           <button
                             className="small-action"
                             onClick={() => appendListField("education")}
@@ -1793,33 +2016,72 @@ function App() {
                       {/* Interests / Languages */}
                       {(activeSectionId === "interests" || activeSectionId === "languages") && (
                         <div className="structured-editor-list">
-                          {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => (
-                            <div className="structured-editor-row" key={`${activeSectionId}-${index}`}>
-                              <input
-                                value={item}
-                                onChange={(e) =>
-                                  updateListField(
-                                    activeSectionId === "interests" ? "interests" : "languages",
-                                    index,
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() => {
-                                  const key = activeSectionId === "interests" ? "interests" : "languages";
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    [key]: (prev[key] as string[]).filter((_, i) => i !== index),
-                                  }));
+                          {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => {
+                            const key = activeSectionId === "interests" ? "interests" : "languages";
+                            const listId = `${key}-entries`;
+                            const itemId = `${key}-${index}-${item}`;
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
+                            return (
+                              <div className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
+                                draggable
+                                tabIndex={0}
+                                aria-grabbed={isGrabbed}
+                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                                onKeyDown={(event) => handleReorderKeyDown(event, {
+                                  listId,
+                                  itemId,
+                                  index,
+                                  total: (editorDraft[key] as string[]).length,
+                                  label: `${key} entry ${index + 1}`,
+                                  onMove: (from, to) => moveDraftListEntries(key === "languages" ? "languages" : "interests", from, to),
+                                })}
+                                onDragStart={() => setDragState({ listId, itemId })}
+                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId }); }}
+                                onDragLeave={() => setDropTarget(null)}
+                                onDrop={() => {
+                                  if (dragState?.listId === listId && key === "languages") {
+                                    const values = editorDraft.languages;
+                                    const fromIndex = values.findIndex((value, i) => `${key}-${i}-${value}` === dragState.itemId);
+                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("languages", fromIndex, index);
+                                  }
+                                  setDragState(null);
+                                  setDropTarget(null);
                                 }}
-                                title="Remove"
+                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
-                                −
-                              </button>
-                            </div>
-                          ))}
+                                <input
+                                  value={item}
+                                  onChange={(e) =>
+                                    updateListField(
+                                      activeSectionId === "interests" ? "interests" : "languages",
+                                      index,
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                                {key === "languages" && (
+                                  <div className="reorder-controls">
+                                    <button type="button" onClick={() => moveDraftListEntries("languages", index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
+                                    <button type="button" onClick={() => moveDraftListEntries("languages", index, Math.min(editorDraft.languages.length - 1, index + 1))} disabled={index === editorDraft.languages.length - 1}>Move Down</button>
+                                  </div>
+                                )}
+                                <button
+                                  className="remove-field-btn"
+                                  onClick={() => {
+                                    const key = activeSectionId === "interests" ? "interests" : "languages";
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      [key]: (prev[key] as string[]).filter((_, i) => i !== index),
+                                    }));
+                                  }}
+                                  title="Remove"
+                                >
+                                  −
+                                </button>
+                              </div>
+                            );
+                          })}
                           <button
                             className="small-action"
                             onClick={() => appendListField(activeSectionId === "interests" ? "interests" : "languages")}
@@ -1835,10 +2097,45 @@ function App() {
                           <button className="small-action add-entry-top-btn" onClick={() => addCustomSectionEntry(activeSectionId)}>
                             + Add entry
                           </button>
-                          {(customSectionContents[activeSectionId] || []).map((entry) => (
-                            <div key={entry.id} className="entry-box">
+                          {(customSectionContents[activeSectionId] || []).map((entry, index) => {
+                            const listId = `${activeSectionId}-custom-entries`;
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === entry.id;
+                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === entry.id;
+                            return (
+                            <div key={entry.id} className={`entry-box reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
+                              draggable
+                              tabIndex={0}
+                              aria-grabbed={isGrabbed}
+                              aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
+                              onKeyDown={(event) => handleReorderKeyDown(event, {
+                                listId,
+                                itemId: entry.id,
+                                index,
+                                total: (customSectionContents[activeSectionId] || []).length,
+                                label: entry.title || `Custom entry ${index + 1}`,
+                                onMove: (from, to) => moveCustomSectionEntry(activeSectionId, from, to),
+                              })}
+                              onDragStart={() => setDragState({ listId, itemId: entry.id })}
+                              onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: entry.id }); }}
+                              onDragLeave={() => setDropTarget(null)}
+                              onDrop={() => {
+                                if (dragState?.listId === listId && dragState.itemId !== entry.id) {
+                                  setCustomSectionContents((prev) => ({
+                                    ...prev,
+                                    [activeSectionId]: moveArrayItemById(prev[activeSectionId] || [], dragState.itemId, entry.id),
+                                  }));
+                                }
+                                setDragState(null);
+                                setDropTarget(null);
+                              }}
+                              onDragEnd={() => { setDragState(null); setDropTarget(null); }}
+                            >
                               <div className="entry-box-header">
                                 <span className="entry-box-type">Entry</span>
+                                <div className="reorder-controls">
+                                  <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
+                                  <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.min((customSectionContents[activeSectionId] || []).length - 1, index + 1))} disabled={index === (customSectionContents[activeSectionId] || []).length - 1}>Move Down</button>
+                                </div>
                                 <button className="remove-entry-btn" onClick={() => removeCustomSectionEntry(activeSectionId, entry.id)} title="Remove">✕</button>
                               </div>
                               <input
@@ -1865,7 +2162,8 @@ function App() {
                                 onChange={(e) => updateCustomSectionEntry(activeSectionId, entry.id, "content", e.target.value)}
                               />
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
