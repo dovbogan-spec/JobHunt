@@ -264,7 +264,6 @@ function App() {
   const [chatMessages, setChatMessages] = useState<string[]>([
     "Hi! I can help complete missing CV details.",
   ]);
-  const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
   const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
@@ -282,8 +281,6 @@ function App() {
   ]);
   const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
   const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
-  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
-  const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const [hasGeneratedResume, setHasGeneratedResume] = useState(false);
@@ -297,7 +294,6 @@ function App() {
   >([]);
   const [analyzingRequirements, setAnalyzingRequirements] = useState(false);
   const [previewFullscreen, setPreviewFullscreen] = useState(false);
-  const [previewPdfMode, setPreviewPdfMode] = useState(false);
   const [experiencePage, setExperiencePage] = useState(1);
   const [insightTab, setInsightTab] = useState<InsightTab>("soft");
   const [insightData, setInsightData] = useState<Record<InsightTab, string[]>>({
@@ -1108,39 +1104,6 @@ function App() {
       ...prev,
       [sectionId]: (prev[sectionId] || []).filter((e) => e.id !== entryId),
     }));
-  }
-  function startEditingResume() {
-    setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
-    setPersonalDetailFields([
-      { id: "pd-fullname", label: "Full Name", value: resume.fullName },
-      { id: "pd-title", label: "Title", value: resume.primaryTitle },
-      { id: "pd-email", label: "Email", value: resume.email },
-      { id: "pd-phone", label: "Phone", value: resume.phone },
-      { id: "pd-linkedin", label: "LinkedIn", value: resume.linkedin },
-    ]);
-    setExperienceEditor(
-      resume.selectedExperience.map((item) => ({
-        id: item.id,
-        fields: [
-          {
-            id: uuidv4(),
-            type: "title" as ExperienceFieldType,
-            value: item.company || resume.organization || "",
-            width: "full" as ExperienceFieldWidth,
-          },
-          {
-            id: uuidv4(),
-            type: "text" as ExperienceFieldType,
-            value: item.text,
-            width: "full" as ExperienceFieldWidth,
-          },
-        ],
-      })),
-    );
-    setActiveSectionId(
-      sections.find((section) => section.visible)?.id ?? sections[0]?.id ?? "header",
-    );
-    setEditMode(true);
   }
   function saveEditingResume() {
     const findField = (label: string) => personalDetailFields.find((f) => f.label === label)?.value ?? "";
@@ -2181,25 +2144,6 @@ function App() {
                 >
                   <div className="preview-toolbar">
                     <button
-                      className="round-icon-button"
-                      onClick={() =>
-                        setZoom((prev) => Math.max(0.7, prev - 0.1))
-                      }
-                    >
-                      −
-                    </button>
-                    <span className="toolbar-zoom-value">
-                      {Math.round(zoom * 100)}%
-                    </span>
-                    <button
-                      className="round-icon-button"
-                      onClick={() =>
-                        setZoom((prev) => Math.min(1.5, prev + 0.1))
-                      }
-                    >
-                      +
-                    </button>
-                    <button
                       className="round-icon-button toolbar-fullscreen"
                       onClick={togglePreviewFullscreen}
                     >
@@ -2207,68 +2151,15 @@ function App() {
                     </button>
                   </div>
 
-                  {sectionPickerOpen && (
-                    <div className="section-picker">
-                      <div className="section-picker-header top-section-row">
-                        <strong>Section controls</strong>
-                        <button
-                          onClick={() =>
-                            setSectionListCollapsed((prev) => !prev)
-                          }
-                        >
-                          {sectionListCollapsed
-                            ? "⬇️ Expand List"
-                            : "⬆️ Collapse List"}
-                        </button>
-                      </div>
-                      {!sectionListCollapsed &&
-                        sections.map((section) => (
-                          <div
-                            key={section.id}
-                            className={`section-picker-row ${section.id === activeSectionId ? "active" : ""}`}
-                          >
-                            <button onClick={() => toggleSection(section.id)}>
-                              {section.visible ? "👁️ Hide" : "👁️ Show"}
-                            </button>
-                            <input
-                              value={section.label}
-                              onFocus={() => setActiveSectionId(section.id)}
-                              onChange={(e) =>
-                                updateSectionLabel(section.id, e.target.value)
-                              }
-                            />
-                          </div>
-                        ))}
-                    </div>
-                  )}
-
-
-
-                  <div
-                    className={`preview-frame ${previewPdfMode ? "pdf-preview-mode" : ""}`}
-                  >
-                    <div
-                      className="preview-content"
-                      style={{ transform: `scale(${zoom})` }}
-                    >
+                  <div className="preview-frame">
+                    <div className="preview-content">
                       {sections
                         .filter((section) => section.visible)
                         .map((section) => {
                           if (section.id === "header") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h2>
-                                  {previewResume.fullName || "Your Name"}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h2>
+                              <div key={section.id}>
+                                <h2>{previewResume.fullName || "Your Name"}</h2>
                                 <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
                                 <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
                               </div>
@@ -2276,138 +2167,58 @@ function App() {
                           }
                           if (section.id === "profile") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 <p className="preview-text">{previewResume.profile}</p>
                               </div>
                             );
                           }
                           if (section.id === "experience") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 {previewResume.selectedExperience.map((item) => (
-                                  <div className="bullet-row" key={item.id}>
-                                    <p className="preview-bullet">• {toPlainText(item.text)}</p>
-                                  </div>
+                                  <p className="preview-bullet" key={item.id}>• {toPlainText(item.text)}</p>
                                 ))}
                               </div>
                             );
                           }
                           if (section.id === "education") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 {previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)}
                               </div>
                             );
                           }
                           if (section.id === "skills") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
                               </div>
                             );
                           }
                           if (section.id === "interests") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 <p className="preview-text">{previewResume.interests.join(" · ")}</p>
                               </div>
                             );
                           }
                           if (section.id === "languages") {
                             return (
-                              <div
-                                key={section.id}
-                                className="preview-section-clickable"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                                title="Click to edit"
-                              >
-                                <h4>
-                                  {section.label}
-                                  <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                                </h4>
+                              <div key={section.id}>
+                                <h4>{section.label}</h4>
                                 <p className="preview-text">{previewResume.languages.join(" · ")}</p>
                               </div>
                             );
                           }
-                          // Custom sections
                           const customEntries = customSectionContents[section.id] || [];
                           return (
-                            <div
-                              key={section.id}
-                              className="preview-section-clickable"
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => openSectionEditor(section.id)}
-                              onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                              title="Click to edit"
-                            >
-                              <h4>
-                                {section.label}
-                                <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
-                              </h4>
+                            <div key={section.id}>
+                              <h4>{section.label}</h4>
                               {customEntries.map((entry) => (
                                 <div key={entry.id}>
                                   {entry.title && <p className="preview-text" style={{ fontWeight: 700, marginBottom: "0.2rem" }}>{entry.title}</p>}
@@ -2418,25 +2229,6 @@ function App() {
                           );
                         })}
                     </div>
-                  </div>
-
-                  <div className="preview-bottom-actions">
-                    <button
-                      onClick={() => setSectionPickerOpen((prev) => !prev)}
-                    >
-                      Sections
-                    </button>
-                    {editMode ? (
-                      <>
-                        <button className="primary" onClick={saveEditingResume}>Save edits</button>
-                        <button onClick={cancelEditingResume}>Cancel</button>
-                      </>
-                    ) : (
-                      <button onClick={startEditingResume}>Edit</button>
-                    )}
-                    <button onClick={() => setPreviewPdfMode((prev) => !prev)}>
-                      Preview
-                    </button>
                   </div>
                 </main>
               </section>
