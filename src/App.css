@@ -8,6 +8,31 @@
     sans-serif;
   color: #123524;
   background: #effaf3;
+  --editor-accent: #2f855a;
+  --editor-accent-strong: #1f6f4d;
+  --editor-surface: #ffffff;
+  --editor-surface-muted: #f5f8f6;
+  --editor-border: #cfdbd3;
+  --editor-border-strong: #9eb7aa;
+  --editor-text: #1e3128;
+  --editor-text-muted: #4f655a;
+  --editor-focus-ring: rgba(47, 133, 90, 0.25);
+  --editor-hover: rgba(47, 133, 90, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --editor-accent: #65c08f;
+    --editor-accent-strong: #85d7a7;
+    --editor-surface: #19231f;
+    --editor-surface-muted: #222f2a;
+    --editor-border: #34473f;
+    --editor-border-strong: #5d7c6f;
+    --editor-text: #e2f0e8;
+    --editor-text-muted: #a6bcaf;
+    --editor-focus-ring: rgba(101, 192, 143, 0.35);
+    --editor-hover: rgba(101, 192, 143, 0.18);
+  }
 }
 
 * {
@@ -411,10 +436,10 @@ textarea {
 
 .resume-preview.modern {
   position: relative;
-  border: 1px solid #d9e2dd;
-  border-top: 4px solid #122622;
-  border-radius: 1.4rem;
-  box-shadow: 0 12px 24px rgba(8, 24, 18, 0.09);
+  border: 1px solid var(--editor-border);
+  border-top: 3px solid var(--editor-accent);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(8, 24, 18, 0.08);
   min-height: calc(100vh - 140px);
   max-height: calc(100vh - 140px);
   display: grid;
@@ -502,7 +527,7 @@ textarea {
   width: 38px;
   min-height: 38px;
   min-width: 38px;
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 0;
   font-size: 1.15rem;
   line-height: 1;
@@ -514,7 +539,7 @@ textarea {
   font-weight: 700;
   min-width: 48px;
   text-align: center;
-  color: #2f855a;
+  color: var(--editor-accent);
 }
 
 .toolbar-fullscreen {
@@ -522,20 +547,20 @@ textarea {
 }
 
 .section-picker {
-  border: 1px dashed #9fcdb2;
-  border-radius: 0.65rem;
+  border: 1px dashed var(--editor-border-strong);
+  border-radius: 4px;
   padding: 0.65rem;
   margin-bottom: 0.75rem;
   display: grid;
   gap: 0.5rem;
-  background: #f6fcf8;
+  background: var(--editor-surface-muted);
 }
 
 .section-manager-panel {
-  background: #ffffff;
-  border-radius: 0.9rem;
-  border: 1px solid #d2e9da;
-  box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
+  background: var(--editor-surface);
+  border-radius: 4px;
+  border: 1px solid var(--editor-border);
+  box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   padding: 0.9rem;
   display: flex;
   flex-direction: column;
@@ -559,14 +584,14 @@ textarea {
   width: 32px;
   min-width: 32px;
   min-height: 32px;
-  border-radius: 999px;
+  border-radius: 4px;
   padding: 0;
   font-size: 1.3rem;
   line-height: 1;
   font-weight: 700;
-  background: #2f855a;
+  background: var(--editor-accent);
   color: #fff;
-  border-color: #2f855a;
+  border-color: var(--editor-accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -574,7 +599,7 @@ textarea {
 }
 
 .add-section-btn:hover {
-  background: #22693f;
+  background: var(--editor-accent-strong);
 }
 
 .section-manager-list {
@@ -585,13 +610,13 @@ textarea {
 }
 
 .section-manager-row {
-  border: 1px solid #cde2d6;
-  border-radius: 0.75rem;
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
   padding: 0.4rem 0.5rem;
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  background: #f8fcf9;
+  background: var(--editor-surface-muted);
   cursor: grab;
   transition: all 0.15s ease;
 }
@@ -601,9 +626,9 @@ textarea {
 }
 
 .section-manager-row.active {
-  border-color: #2f855a;
-  box-shadow: 0 0 0 1px #2f855a;
-  background: #eef8f2;
+  border-color: var(--editor-accent);
+  box-shadow: 0 0 0 1px var(--editor-accent);
+  background: var(--editor-hover);
 }
 
 .section-manager-row.is-hidden {
@@ -611,9 +636,9 @@ textarea {
 }
 
 .section-manager-row.drag-over {
-  border-color: #4a9d70;
-  background: #e8f7ee;
-  box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.3);
+  border-color: var(--editor-accent);
+  background: var(--editor-hover);
+  box-shadow: 0 0 0 2px var(--editor-focus-ring);
 }
 
 .section-drag-handle {
@@ -630,17 +655,17 @@ textarea {
   min-height: 28px;
   min-width: 28px;
   padding: 0;
-  border-radius: 0.45rem;
+  border-radius: 4px;
   font-size: 0.85rem;
   line-height: 1;
-  background: #f4fbf6;
-  border-color: #c5dfd0;
+  background: var(--editor-surface-muted);
+  border-color: var(--editor-border);
   flex-shrink: 0;
 }
 
 .section-pencil-btn:hover {
-  background: #e2f5ea;
-  border-color: #4a9d70;
+  background: var(--editor-hover);
+  border-color: var(--editor-accent);
 }
 
 .section-row-label {
@@ -657,7 +682,7 @@ textarea {
   min-height: 28px;
   min-width: 28px;
   padding: 0;
-  border-radius: 0.45rem;
+  border-radius: 4px;
   font-size: 0.85rem;
   line-height: 1;
   background: transparent;
@@ -666,8 +691,8 @@ textarea {
 }
 
 .section-visibility-btn:hover {
-  background: #f4fbf6;
-  border-color: #c5dfd0;
+  background: var(--editor-hover);
+  border-color: var(--editor-border);
 }
 
 .section-select-btn {
@@ -697,15 +722,15 @@ textarea {
 }
 
 .section-picker-row.active {
-  outline: 2px solid #89bda0;
-  border-radius: 0.6rem;
+  outline: 2px solid var(--editor-accent);
+  border-radius: 4px;
 }
 
 .focused-editor-card {
-  border: 1px solid #cfe3d7;
-  border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 10px 28px rgba(18, 53, 36, 0.09);
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
+  background: var(--editor-surface);
+  box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   margin-bottom: 0.8rem;
   display: grid;
   gap: 0.75rem;
@@ -726,7 +751,7 @@ textarea {
 
 .focused-editor-kicker {
   font-size: 0.75rem;
-  color: #507764;
+  color: var(--editor-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -740,10 +765,10 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  border: 1px solid #d8e8df;
-  border-radius: 0.75rem;
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
   padding: 0.35rem;
-  background: #f6fbf8;
+  background: var(--editor-surface-muted);
 }
 
 .editor-toolbar-strip button {
@@ -752,11 +777,11 @@ textarea {
 }
 
 .rich-editor-surface {
-  border: 1px solid #cddfd3;
-  border-radius: 0.8rem;
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
   min-height: 150px;
   padding: 0.7rem;
-  background: #fff;
+  background: var(--editor-surface);
 }
 
 .structured-editor-list {
@@ -774,18 +799,18 @@ textarea {
   justify-content: flex-end;
   gap: 0.45rem;
   padding-top: 0.25rem;
-  border-top: 1px solid #dfece4;
+  border-top: 1px solid var(--editor-border);
 }
 
 .top-section-row {
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid #cee6d7;
+  border-bottom: 1px solid var(--editor-border);
 }
 
 .preview-frame {
   overflow: auto;
-  border: 1px solid #cee6d7;
-  border-radius: 1.3rem;
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
   padding: 1.1rem;
   position: relative;
   display: grid;
@@ -847,18 +872,18 @@ textarea {
 /* Clickable sections in CV preview */
 .preview-section-clickable {
   cursor: pointer;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   transition: background 0.15s ease;
   padding: 0.25rem 0.35rem;
   margin: -0.25rem -0.35rem;
 }
 
 .preview-section-clickable:hover {
-  background: rgba(47, 133, 90, 0.06);
+  background: var(--editor-hover);
 }
 
 .preview-section-clickable:focus-visible {
-  outline: 2px solid #2f855a;
+  outline: 2px solid var(--editor-accent);
   outline-offset: 2px;
 }
 
@@ -880,11 +905,11 @@ textarea {
   font-size: 1rem;
   font-weight: 700;
   padding: 0.2rem 0.4rem;
-  border-radius: 0.4rem;
-  border: 1px solid #4a9d70;
+  border-radius: 4px;
+  border: 1px solid var(--editor-accent);
   width: 100%;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.2);
+  box-shadow: 0 0 0 2px var(--editor-focus-ring);
 }
 
 /* Pencil icon next to section name in focused editor header */
@@ -912,13 +937,13 @@ textarea {
 }
 
 .section-row-label[role="button"]:hover {
-  color: #2f855a;
+  color: var(--editor-accent);
   text-decoration: underline;
 }
 
 .editor-actions-footer {
   justify-content: center;
-  border-top: 1px solid #d8ece0;
+  border-top: 1px solid var(--editor-border);
   padding-top: 0.7rem;
   margin-top: 0.7rem;
 }
@@ -926,10 +951,72 @@ textarea {
 .preview-bottom-actions button {
   min-height: 36px;
   padding: 0.35rem 0.9rem;
-  border-radius: 0.55rem;
+  border-radius: 4px;
   font-size: 0.85rem;
   font-weight: 600;
   width: auto;
+}
+
+.section-manager-panel button,
+.section-manager-panel input,
+.section-manager-panel select,
+.section-manager-panel textarea,
+.resume-preview button,
+.resume-preview input,
+.resume-preview select,
+.resume-preview textarea,
+.focused-editor-card button,
+.focused-editor-card input,
+.focused-editor-card select,
+.focused-editor-card textarea,
+.resume-editor-pane button,
+.resume-editor-pane input,
+.resume-editor-pane select,
+.resume-editor-pane textarea {
+  border-radius: 4px;
+  border-color: var(--editor-border);
+  background: var(--editor-surface);
+  color: var(--editor-text);
+}
+
+.section-manager-panel button:hover,
+.section-manager-panel input:hover,
+.section-manager-panel select:hover,
+.section-manager-panel textarea:hover,
+.resume-preview button:hover,
+.resume-preview input:hover,
+.resume-preview select:hover,
+.resume-preview textarea:hover,
+.focused-editor-card button:hover,
+.focused-editor-card input:hover,
+.focused-editor-card select:hover,
+.focused-editor-card textarea:hover,
+.resume-editor-pane button:hover,
+.resume-editor-pane input:hover,
+.resume-editor-pane select:hover,
+.resume-editor-pane textarea:hover {
+  border-color: var(--editor-accent);
+  box-shadow: 0 0 0 2px var(--editor-focus-ring);
+}
+
+.section-manager-panel button:focus-visible,
+.section-manager-panel input:focus-visible,
+.section-manager-panel select:focus-visible,
+.section-manager-panel textarea:focus-visible,
+.resume-preview button:focus-visible,
+.resume-preview input:focus-visible,
+.resume-preview select:focus-visible,
+.resume-preview textarea:focus-visible,
+.focused-editor-card button:focus-visible,
+.focused-editor-card input:focus-visible,
+.focused-editor-card select:focus-visible,
+.focused-editor-card textarea:focus-visible,
+.resume-editor-pane button:focus-visible,
+.resume-editor-pane input:focus-visible,
+.resume-editor-pane select:focus-visible,
+.resume-editor-pane textarea:focus-visible {
+  outline: 2px solid var(--editor-accent);
+  outline-offset: 1px;
 }
 
 .insights ul,
