@@ -308,7 +308,7 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
-  const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
+  const [, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
   const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
