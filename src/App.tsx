@@ -6,8 +6,43 @@ import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
 type TabName = "resume" | "coverLetter" | "history" | "llmIntegration";
-type PersonalDetailField = { id: string; label: string; value: string };
-type SkillEntry = { id: string; name: string; level: string };
+type ProficiencyLevel = "Beginner" | "Intermediate" | "Advanced" | "Expert";
+type LanguageLevel =
+  | "Basic"
+  | "Conversational"
+  | "Proficient"
+  | "Fluent"
+  | "Native/Bilingual";
+type PersonalDetails = {
+  fullName: string;
+  professionalTitle: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedIn: string;
+  portfolio?: string;
+};
+type ResumeExperienceItem = {
+  id: string;
+  jobTitle: string;
+  employer: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+  description: string;
+  visible: boolean;
+  order: number;
+};
+type EducationItem = {
+  id: string;
+  degree: string;
+  institution: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+};
+type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel };
+type ResumeLanguageEntry = { id: string; language: string; level: LanguageLevel };
 type CustomSectionEntry = { id: string; title: string; content: string };
 type InsightTab = "soft" | "hard" | "reviews" | "salary" | "values";
 type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
@@ -20,19 +55,13 @@ type ExperienceItem = {
   selected: boolean;
 };
 type ResumeData = {
-  fullName: string;
-  email: string;
-  phone: string;
-  linkedin: string;
-  portfolio: string;
-  primaryTitle: string;
-  specializations: [string, string];
+  personalDetails: PersonalDetails;
   profile: string;
-  keySkills: string[];
-  education: string[];
+  experience: ResumeExperienceItem[];
+  education: EducationItem[];
+  skills: ResumeSkillEntry[];
   interests: string[];
-  languages: string[];
-  selectedExperience: ExperienceItem[];
+  languages: ResumeLanguageEntry[];
   organization: string;
 };
 type ResumeSection = { id: string; label: string; visible: boolean };
@@ -84,19 +113,6 @@ type LlmSettings = {
   azureApiVersion: string;
   customHeaders: string;
 };
-type ExperienceFieldType = "text" | "date" | "title" | "subTitle";
-type ExperienceFieldWidth = "full" | "half";
-type ExperienceEditorField = {
-  id: string;
-  type: ExperienceFieldType;
-  value: string;
-  width: ExperienceFieldWidth;
-};
-type ExperienceEditorItem = {
-  id: string;
-  fields: ExperienceEditorField[];
-};
-
 const SKILL_KEYWORDS = [
   "react",
   "typescript",
@@ -156,23 +172,34 @@ const providerLabels: Record<LlmProvider, string> = {
 };
 
 const initialResume: ResumeData = {
-  fullName: "",
-  email: "",
-  phone: "",
-  linkedin: "",
-  portfolio: "",
-  primaryTitle: "",
-  specializations: ["", ""],
+  personalDetails: {
+    fullName: "",
+    professionalTitle: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedIn: "",
+    portfolio: "",
+  },
   profile: "",
-  keySkills: [
-    "Applied AI & Machine Learning",
-    "React + TypeScript",
-    "System Design",
+  experience: [],
+  skills: [
+    { id: uuidv4(), skillName: "Applied AI & Machine Learning", proficiency: "Advanced" },
+    { id: uuidv4(), skillName: "React + TypeScript", proficiency: "Advanced" },
+    { id: uuidv4(), skillName: "System Design", proficiency: "Intermediate" },
   ],
-  education: ["BSc, Computer Science, Your University"],
+  education: [
+    {
+      id: uuidv4(),
+      degree: "BSc, Computer Science",
+      institution: "Your University",
+      startDate: "",
+      endDate: "",
+      description: "",
+    },
+  ],
   interests: ["Product strategy", "Open source", "Mentoring"],
-  languages: ["English — Fluent"],
-  selectedExperience: [],
+  languages: [{ id: uuidv4(), language: "English", level: "Fluent" }],
   organization: "",
 };
 const defaultLlmSettings: LlmSettings = {
@@ -209,9 +236,115 @@ function normalizeHistory(
     const item = entry as SubmissionHistory;
     return {
       ...item,
+      resume: migrateResumeData(item.resume),
       status: item.status === "churned" ? "churned" : "active",
     };
   });
+}
+
+function migrateResumeData(value: unknown): ResumeData {
+  if (!value || typeof value !== "object") return initialResume;
+  const source = value as Record<string, unknown>;
+  const personalDetailsSource =
+    (source.personalDetails as Record<string, unknown> | undefined) || {};
+
+  const fullName = String(personalDetailsSource.fullName || source.fullName || "");
+  const professionalTitle = String(
+    personalDetailsSource.professionalTitle || source.primaryTitle || "",
+  );
+  const email = String(personalDetailsSource.email || source.email || "");
+  const phone = String(personalDetailsSource.phone || source.phone || "");
+  const linkedIn = String(personalDetailsSource.linkedIn || source.linkedin || "");
+  const portfolio = String(personalDetailsSource.portfolio || source.portfolio || "");
+  const location = String(personalDetailsSource.location || "");
+
+  const oldExperience = Array.isArray(source.selectedExperience)
+    ? (source.selectedExperience as ExperienceItem[])
+    : [];
+  const experience = Array.isArray(source.experience)
+    ? (source.experience as ResumeExperienceItem[])
+    : oldExperience.map((item, index) => ({
+        id: item.id || uuidv4(),
+        jobTitle: "",
+        employer: item.company || "",
+        startDate: "",
+        endDate: "",
+        location: "",
+        description: item.text || "",
+        visible: item.selected ?? true,
+        order: index,
+      }));
+
+  const education = Array.isArray(source.education)
+    ? (source.education as Array<EducationItem | string>).map((item) =>
+        typeof item === "string"
+          ? {
+              id: uuidv4(),
+              degree: item,
+              institution: "",
+              startDate: "",
+              endDate: "",
+              description: "",
+            }
+          : {
+              id: item.id || uuidv4(),
+              degree: item.degree || "",
+              institution: item.institution || "",
+              startDate: item.startDate || "",
+              endDate: item.endDate || "",
+              description: item.description || "",
+            },
+      )
+    : [];
+
+  const skills = Array.isArray(source.skills)
+    ? (source.skills as ResumeSkillEntry[])
+    : Array.isArray(source.keySkills)
+      ? (source.keySkills as string[]).map((skill) => ({
+          id: uuidv4(),
+          skillName: skill,
+          proficiency: "Advanced" as ProficiencyLevel,
+        }))
+      : [];
+
+  const languages = Array.isArray(source.languages)
+    ? (source.languages as Array<ResumeLanguageEntry | string>).map((item) => {
+        if (typeof item !== "string") {
+          return {
+            id: item.id || uuidv4(),
+            language: item.language || "",
+            level: item.level || "Conversational",
+          } satisfies ResumeLanguageEntry;
+        }
+        const [language, level] = item.split("—").map((part) => part.trim());
+        return {
+          id: uuidv4(),
+          language: language || item,
+          level: (level as LanguageLevel) || "Conversational",
+        };
+      })
+    : [];
+
+  return {
+    personalDetails: {
+      fullName,
+      professionalTitle,
+      email,
+      phone,
+      location,
+      linkedIn,
+      portfolio,
+    },
+    profile: String(source.profile || ""),
+    experience,
+    education,
+    skills,
+    interests: Array.isArray(source.interests)
+      ? source.interests.map((item) => String(item)).filter(Boolean)
+      : [],
+    languages,
+    organization: String(source.organization || ""),
+  };
 }
 
 function App() {
@@ -243,18 +376,12 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [editMode, setEditMode] = useState(false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(initialResume);
-  const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [draggingSection, setDraggingSection] = useState<string | null>(null);
   const [sectionDragOver, setSectionDragOver] = useState<string | null>(null);
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
-  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>([
-    { id: "pd-fullname", label: "Full Name", value: "" },
-    { id: "pd-title", label: "Title", value: "" },
-    { id: "pd-email", label: "Email", value: "" },
-    { id: "pd-phone", label: "Phone", value: "" },
-    { id: "pd-linkedin", label: "LinkedIn", value: "" },
-  ]);
-  const [skillEntries, setSkillEntries] = useState<SkillEntry[]>([]);
+  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetails>(
+    initialResume.personalDetails,
+  );
   const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionEntry[]>>({});
   const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
   const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
@@ -586,7 +713,7 @@ function App() {
       const nextEntry: SubmissionHistory = {
         id: existingIndex >= 0 ? prev[existingIndex].id : uuidv4(),
         date: new Date().toISOString(),
-        role: resume.primaryTitle,
+        role: resume.personalDetails.professionalTitle,
         company: resume.organization,
         jobLink: jobLink.trim(),
         template,
@@ -795,34 +922,39 @@ function App() {
       setAgentOutputs({ job, company, candidate, draft, gap });
 
       setResume({
-        fullName: info.fullName || "Your Name",
-        email: info.email,
-        phone: info.phone,
-        linkedin: "linkedin.com/in/your-profile",
-        portfolio: "github.com/your-handle",
-        primaryTitle: String(
-          (draft.targetRole as string | undefined) ||
-            (job.snapshot as { title?: string } | undefined)?.title ||
-            "Target Role",
-        ),
-        specializations: ["Specialization 1", "Specialization 2"],
+        personalDetails: {
+          fullName: info.fullName || "Your Name",
+          professionalTitle: String(
+            (draft.targetRole as string | undefined) ||
+              (job.snapshot as { title?: string } | undefined)?.title ||
+              "Target Role",
+          ),
+          email: info.email,
+          phone: info.phone,
+          location: "",
+          linkedIn: "linkedin.com/in/your-profile",
+          portfolio: "github.com/your-handle",
+        },
         profile: String(
           (draft.summary as string | undefined) ||
             "Tailored summary generated by matcher agent.",
         ),
-        keySkills: (
-          (draft.selectedSkills as string[] | undefined) ||
+        skills: (((draft.selectedSkills as string[] | undefined) ||
           (job.mustHaves as string[] | undefined) ||
-          []
-        ).slice(0, 12),
-        education: ["BSc, Computer Science, Your University"],
+          []).slice(0, 12)).map((skill) => ({ id: uuidv4(), skillName: skill, proficiency: "Advanced" })),
+        education: [{ id: uuidv4(), degree: "BSc, Computer Science", institution: "Your University", startDate: "", endDate: "", description: "" }],
         interests: ["Product strategy", "Open source", "Mentoring"],
-        languages: ["English — Fluent"],
-        selectedExperience: parsed.map((item, i) => ({
-          ...item,
-          text:
-            ((draft.tailoredExperience as string[] | undefined) || [])[i] ||
-            item.text,
+        languages: [{ id: uuidv4(), language: "English", level: "Fluent" }],
+        experience: parsed.map((item, i) => ({
+          id: item.id,
+          jobTitle: "",
+          employer: item.company,
+          startDate: "",
+          endDate: "",
+          location: "",
+          description: ((draft.tailoredExperience as string[] | undefined) || [])[i] || item.text,
+          visible: true,
+          order: i,
         })),
         organization,
       });
@@ -909,9 +1041,11 @@ function App() {
       profile: String(
         (patchedDraft.summary as string | undefined) || prev.profile,
       ),
-      keySkills: (
-        (patchedDraft.selectedSkills as string[] | undefined) || prev.keySkills
-      ).slice(0, 12),
+      skills: (((patchedDraft.selectedSkills as string[] | undefined) || prev.skills.map((skill) => skill.skillName)).slice(0, 12)).map((skill, index) => ({
+        id: prev.skills[index]?.id || uuidv4(),
+        skillName: skill,
+        proficiency: prev.skills[index]?.proficiency || "Advanced",
+      })),
     }));
     setChatMessages((prev) => [
       ...prev,
@@ -922,7 +1056,19 @@ function App() {
   function applySelectedExperience() {
     setResume((prev) => ({
       ...prev,
-      selectedExperience: experienceItems.filter((item) => item.selected),
+      experience: experienceItems
+        .filter((item) => item.selected)
+        .map((item, index) => ({
+          id: item.id,
+          jobTitle: "",
+          employer: item.company,
+          startDate: "",
+          endDate: "",
+          location: "",
+          description: item.text,
+          visible: true,
+          order: index,
+        })),
     }));
   }
   function toggleExperience(id: string) {
@@ -969,47 +1115,36 @@ function App() {
   }
   function openSectionEditor(id: string) {
     if (!editMode) {
-      setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
-      setPersonalDetailFields([
-        { id: "pd-fullname", label: "Full Name", value: resume.fullName },
-        { id: "pd-title", label: "Title", value: resume.primaryTitle },
-        { id: "pd-email", label: "Email", value: resume.email },
-        { id: "pd-phone", label: "Phone", value: resume.phone },
-        { id: "pd-linkedin", label: "LinkedIn", value: resume.linkedin },
-      ]);
-      setExperienceEditor(
-        resume.selectedExperience.map((item) => ({
-          id: item.id,
-          fields: [
-            { id: uuidv4(), type: "title" as ExperienceFieldType, value: item.company || resume.organization || "", width: "full" as ExperienceFieldWidth },
-            { id: uuidv4(), type: "text" as ExperienceFieldType, value: item.text, width: "full" as ExperienceFieldWidth },
-          ],
-        })),
-      );
+      const migrated = migrateResumeData(resume);
+      setEditorDraft(migrated);
+      setPersonalDetailFields(migrated.personalDetails);
     }
     setActiveSectionId(id);
     setEditMode(true);
   }
-  function updatePersonalDetailField(id: string, value: string) {
-    setPersonalDetailFields((prev) => prev.map((f) => (f.id === id ? { ...f, value } : f)));
-  }
-  function updatePersonalDetailLabel(id: string, label: string) {
-    setPersonalDetailFields((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
-  }
-  function addPersonalDetailField() {
-    setPersonalDetailFields((prev) => [...prev, { id: uuidv4(), label: "New Field", value: "" }]);
-  }
-  function removePersonalDetailField(id: string) {
-    setPersonalDetailFields((prev) => prev.filter((f) => f.id !== id));
+  function updatePersonalDetailField(field: keyof PersonalDetails, value: string) {
+    setPersonalDetailFields((prev) => ({ ...prev, [field]: value }));
+    setEditorDraft((prev) => ({
+      ...prev,
+      personalDetails: { ...prev.personalDetails, [field]: value },
+    }));
   }
   function addSkillEntry() {
-    setSkillEntries((prev) => [...prev, { id: uuidv4(), name: "", level: "" }]);
+    setEditorDraft((prev) => ({
+      ...prev,
+      skills: [...prev.skills, { id: uuidv4(), skillName: "", proficiency: "Intermediate" }],
+    }));
   }
-  function updateSkillEntry(id: string, field: keyof SkillEntry, value: string) {
-    setSkillEntries((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: value } : e)));
+  function updateSkillEntry(id: string, field: keyof ResumeSkillEntry, value: string) {
+    setEditorDraft((prev) => ({
+      ...prev,
+      skills: prev.skills.map((entry) =>
+        entry.id === id ? { ...entry, [field]: value } : entry,
+      ),
+    }));
   }
   function removeSkillEntry(id: string) {
-    setSkillEntries((prev) => prev.filter((e) => e.id !== id));
+    setEditorDraft((prev) => ({ ...prev, skills: prev.skills.filter((entry) => entry.id !== id) }));
   }
   function addCustomSectionEntry(sectionId: string) {
     setCustomSectionContents((prev) => ({
@@ -1030,53 +1165,24 @@ function App() {
     }));
   }
   function startEditingResume() {
-    setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
-    setPersonalDetailFields([
-      { id: "pd-fullname", label: "Full Name", value: resume.fullName },
-      { id: "pd-title", label: "Title", value: resume.primaryTitle },
-      { id: "pd-email", label: "Email", value: resume.email },
-      { id: "pd-phone", label: "Phone", value: resume.phone },
-      { id: "pd-linkedin", label: "LinkedIn", value: resume.linkedin },
-    ]);
-    setExperienceEditor(
-      resume.selectedExperience.map((item) => ({
-        id: item.id,
-        fields: [
-          {
-            id: uuidv4(),
-            type: "title" as ExperienceFieldType,
-            value: item.company || resume.organization || "",
-            width: "full" as ExperienceFieldWidth,
-          },
-          {
-            id: uuidv4(),
-            type: "text" as ExperienceFieldType,
-            value: item.text,
-            width: "full" as ExperienceFieldWidth,
-          },
-        ],
-      })),
-    );
+    const migrated = migrateResumeData(resume);
+    setEditorDraft(migrated);
+    setPersonalDetailFields(migrated.personalDetails);
     setActiveSectionId(
       sections.find((section) => section.visible)?.id ?? sections[0]?.id ?? "header",
     );
     setEditMode(true);
   }
   function saveEditingResume() {
-    const findField = (label: string) => personalDetailFields.find((f) => f.label === label)?.value ?? "";
     setResume({
       ...editorDraft,
-      fullName: findField("Full Name") || editorDraft.fullName,
-      primaryTitle: findField("Title") || editorDraft.primaryTitle,
-      email: findField("Email") || editorDraft.email,
-      phone: findField("Phone") || editorDraft.phone,
-      linkedin: findField("LinkedIn") || editorDraft.linkedin,
+      personalDetails: personalDetailFields,
     });
     setEditMode(false);
     setSaveMessage("Resume edits saved.");
   }
   function cancelEditingResume() {
-    setEditorDraft({ ...resume, selectedExperience: [...resume.selectedExperience] });
+    setEditorDraft(migrateResumeData(resume));
     setEditMode(false);
   }
   function updateActiveSectionVisibility(visible: boolean) {
@@ -1098,7 +1204,15 @@ function App() {
   }, [activeSectionId, editMode, sections]);
   function clearActiveSectionContent() {
     if (activeSectionId === "header") {
-      setPersonalDetailFields((prev) => prev.map((f) => ({ ...f, value: "" })));
+      setPersonalDetailFields({
+        fullName: "",
+        professionalTitle: "",
+        email: "",
+        phone: "",
+        location: "",
+        linkedIn: "",
+        portfolio: "",
+      });
       return;
     }
     setEditorDraft((prev) => {
@@ -1106,11 +1220,11 @@ function App() {
         case "profile":
           return { ...prev, profile: "" };
         case "experience":
-          return { ...prev, selectedExperience: [] };
+          return { ...prev, experience: [] };
         case "education":
           return { ...prev, education: [] };
         case "skills":
-          return { ...prev, keySkills: [] };
+          return { ...prev, skills: [] };
         case "interests":
           return { ...prev, interests: [] };
         case "languages":
@@ -1138,20 +1252,44 @@ function App() {
     document.execCommand(command, false);
   }
 
-  function updateListField<K extends "education" | "keySkills" | "interests" | "languages">(
-    key: K,
+  function updateInterestOrLanguageField(
+    key: "interests" | "languages",
     index: number,
     value: string,
   ) {
-    setEditorDraft((prev) => ({
-      ...prev,
-      [key]: prev[key].map((item, itemIndex) =>
-        itemIndex === index ? value : item,
-      ).filter((item) => item.trim().length > 0 || item === value),
-    }));
+    setEditorDraft((prev) => {
+      if (key === "interests") {
+        return {
+          ...prev,
+          interests: prev.interests.map((item, itemIndex) =>
+            itemIndex === index ? value : item,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        languages: prev.languages.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, language: value } : item,
+        ),
+      };
+    });
   }
-  function appendListField(key: "education" | "keySkills" | "interests" | "languages") {
-    setEditorDraft((prev) => ({ ...prev, [key]: [...prev[key], ""] }));
+  function appendListField(key: "education" | "interests" | "languages") {
+    setEditorDraft((prev) => {
+      if (key === "education") {
+        return {
+          ...prev,
+          education: [...prev.education, { id: uuidv4(), degree: "", institution: "", startDate: "", endDate: "", description: "" }],
+        };
+      }
+      if (key === "languages") {
+        return {
+          ...prev,
+          languages: [...prev.languages, { id: uuidv4(), language: "", level: "Conversational" }],
+        };
+      }
+      return { ...prev, interests: [...prev.interests, ""] };
+    });
   }
   async function togglePreviewFullscreen() {
     if (!previewRef.current) return;
@@ -1167,12 +1305,12 @@ function App() {
 
   function generateCoverLetter() {
     setCoverLetter(
-      `Dear Hiring Team at ${resume.organization || "the company"},\n\nI am excited to apply for the ${resume.primaryTitle || "open role"}. I bring strengths in ${resume.keySkills.slice(0, 5).join(", ")} and have delivered:\n${resume.selectedExperience
+      `Dear Hiring Team at ${resume.organization || "the company"},\n\nI am excited to apply for the ${resume.personalDetails.professionalTitle || "open role"}. I bring strengths in ${resume.skills.slice(0, 5).map((skill) => skill.skillName).join(", ")} and have delivered:\n${resume.experience
         .slice(0, 3)
-        .map((item) => `• ${toPlainText(item.text)}`)
+        .map((item) => `• ${toPlainText(item.description)}`)
         .join(
           "\n",
-        )}\n\n${coverLetterNotes ? `${coverLetterNotes}\n\n` : ""}Sincerely,\n${resume.fullName || "Candidate"}`,
+        )}\n\n${coverLetterNotes ? `${coverLetterNotes}\n\n` : ""}Sincerely,\n${resume.personalDetails.fullName || "Candidate"}`,
     );
   }
 
@@ -1180,28 +1318,28 @@ function App() {
     const doc = new jsPDF();
     let y = 20;
     doc.setFontSize(18);
-    doc.text(resume.fullName || "Your Name", 14, y);
+    doc.text(resume.personalDetails.fullName || "Your Name", 14, y);
     y += 8;
     doc.setFontSize(11);
-    doc.text(`${resume.email} | ${resume.phone} | ${resume.linkedin}`, 14, y);
+    doc.text(`${resume.personalDetails.email} | ${resume.personalDetails.phone} | ${resume.personalDetails.linkedIn}`, 14, y);
     y += 8;
-    doc.text(`Target Role: ${resume.primaryTitle}`, 14, y);
+    doc.text(`Target Role: ${resume.personalDetails.professionalTitle}`, 14, y);
     y += 8;
     doc.text(toPlainText(resume.profile), 14, y, { maxWidth: 180 });
     y += 16;
-    doc.text(`Skills: ${resume.keySkills.join(", ")}`, 14, y, {
+    doc.text(`Skills: ${resume.skills.map((skill) => `${skill.skillName} (${skill.proficiency})`).join(", ")}`, 14, y, {
       maxWidth: 180,
     });
     y += 12;
-    resume.selectedExperience.forEach((item) => {
-      doc.text(`• ${toPlainText(item.text)}`, 14, y, { maxWidth: 180 });
+    resume.experience.forEach((item) => {
+      doc.text(`• ${toPlainText(item.description)}`, 14, y, { maxWidth: 180 });
       y += 7;
       if (y > 275) {
         doc.addPage();
         y = 20;
       }
     });
-    doc.save(`${(resume.fullName || "resume").replace(/\s+/g, "_")}.pdf`);
+    doc.save(`${(resume.personalDetails.fullName || "resume").replace(/\s+/g, "_")}.pdf`);
   }
 
   async function onUpload(file: File) {
@@ -1229,9 +1367,12 @@ function App() {
       const info = extractPersonInfo(extractedText);
       setResume((prev) => ({
         ...prev,
-        fullName: info.fullName || prev.fullName,
-        email: info.email || prev.email,
-        phone: info.phone || prev.phone,
+        personalDetails: {
+          ...prev.personalDetails,
+          fullName: info.fullName || prev.personalDetails.fullName,
+          email: info.email || prev.personalDetails.email,
+          phone: info.phone || prev.personalDetails.phone,
+        },
       }));
 
       const candidate = await runAgent3Parser(extractedText);
@@ -1614,33 +1755,13 @@ function App() {
                       {/* Personal Details */}
                       {activeSectionId === "header" && (
                         <div className="structured-editor-list">
-                          {personalDetailFields.map((field) => (
-                            <div key={field.id} className="pd-field-row">
-                              <input
-                                className="pd-label-input"
-                                value={field.label}
-                                onChange={(e) => updatePersonalDetailLabel(field.id, e.target.value)}
-                                placeholder="Field label"
-                              />
-                              <input
-                                className="pd-value-input"
-                                value={field.value}
-                                onChange={(e) => updatePersonalDetailField(field.id, e.target.value)}
-                                placeholder={field.label}
-                              />
-                              <button
-                                className="remove-field-btn"
-                                onClick={() => removePersonalDetailField(field.id)}
-                                title="Remove field"
-                                aria-label="Remove field"
-                              >
-                                −
-                              </button>
-                            </div>
-                          ))}
-                          <button className="small-action add-field-btn" onClick={addPersonalDetailField}>
-                            + Add field
-                          </button>
+                          <input value={personalDetailFields.fullName} onChange={(e) => updatePersonalDetailField("fullName", e.target.value)} placeholder="Full name" />
+                          <input value={personalDetailFields.professionalTitle} onChange={(e) => updatePersonalDetailField("professionalTitle", e.target.value)} placeholder="Professional title" />
+                          <input value={personalDetailFields.email} onChange={(e) => updatePersonalDetailField("email", e.target.value)} placeholder="Email" />
+                          <input value={personalDetailFields.phone} onChange={(e) => updatePersonalDetailField("phone", e.target.value)} placeholder="Phone" />
+                          <input value={personalDetailFields.location} onChange={(e) => updatePersonalDetailField("location", e.target.value)} placeholder="Location" />
+                          <input value={personalDetailFields.linkedIn} onChange={(e) => updatePersonalDetailField("linkedIn", e.target.value)} placeholder="LinkedIn" />
+                          <input value={personalDetailFields.portfolio || ""} onChange={(e) => updatePersonalDetailField("portfolio", e.target.value)} placeholder="Portfolio (optional)" />
                         </div>
                       )}
 
@@ -1682,27 +1803,32 @@ function App() {
                             onClick={() =>
                               setEditorDraft((prev) => ({
                                 ...prev,
-                                selectedExperience: [
-                                  ...prev.selectedExperience,
-                                  { id: uuidv4(), text: "", company: "", skillTags: [], selected: true },
+                                experience: [
+                                  ...prev.experience,
+                                  { id: uuidv4(), jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", visible: true, order: prev.experience.length },
                                 ],
                               }))
                             }
                           >
                             + Add experience
                           </button>
-                          {editorDraft.selectedExperience.map((item, index) => (
+                          {editorDraft.experience.map((item, index) => (
                             <div className="structured-editor-row" key={item.id}>
+                              <input value={item.jobTitle} placeholder="Job title" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, jobTitle: e.target.value } : si) }))} />
+                              <input value={item.employer} placeholder="Employer" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, employer: e.target.value } : si) }))} />
+                              <input value={item.startDate} placeholder="Start date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, startDate: e.target.value } : si) }))} />
+                              <input value={item.endDate} placeholder="End date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, endDate: e.target.value } : si) }))} />
+                              <input value={item.location} placeholder="Location" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, location: e.target.value } : si) }))} />
                               <textarea
                                 className="manual-editor-box"
-                                value={toPlainText(item.text)}
+                                value={item.description}
                                 rows={3}
-                                placeholder="Experience bullet point…"
+                                placeholder="Impact description"
                                 onChange={(e) =>
                                   setEditorDraft((prev) => ({
                                     ...prev,
-                                    selectedExperience: prev.selectedExperience.map((si, i) =>
-                                      i === index ? { ...si, text: e.target.value } : si,
+                                    experience: prev.experience.map((si, i) =>
+                                      i === index ? { ...si, description: e.target.value } : si,
                                     ),
                                   }))
                                 }
@@ -1712,7 +1838,7 @@ function App() {
                                 onClick={() =>
                                   setEditorDraft((prev) => ({
                                     ...prev,
-                                    selectedExperience: prev.selectedExperience.filter((_, i) => i !== index),
+                                    experience: prev.experience.filter((_, i) => i !== index),
                                   }))
                                 }
                                 title="Remove"
@@ -1721,7 +1847,7 @@ function App() {
                               </button>
                             </div>
                           ))}
-                          {editorDraft.selectedExperience.length === 0 && (
+                          {editorDraft.experience.length === 0 && (
                             <p className="editor-empty-state">No experience entries yet.</p>
                           )}
                         </div>
@@ -1733,25 +1859,25 @@ function App() {
                           <button className="small-action add-entry-top-btn" onClick={addSkillEntry}>
                             + Add skill
                           </button>
-                          {skillEntries.map((entry) => (
+                          {editorDraft.skills.map((entry) => (
                             <div key={entry.id} className="entry-box skill-entry-box">
                               <div className="entry-box-header">
                                 <span className="entry-box-type">Skill</span>
                                 <button className="remove-entry-btn" onClick={() => removeSkillEntry(entry.id)} title="Remove">✕</button>
                               </div>
                               <input
-                                value={entry.name}
+                                value={entry.skillName}
                                 placeholder="Skill name"
-                                onChange={(e) => updateSkillEntry(entry.id, "name", e.target.value)}
+                                onChange={(e) => updateSkillEntry(entry.id, "skillName", e.target.value)}
                               />
                               <input
-                                value={entry.level}
+                                value={entry.proficiency}
                                 placeholder="Level (e.g. Expert, Intermediate)"
-                                onChange={(e) => updateSkillEntry(entry.id, "level", e.target.value)}
+                                onChange={(e) => updateSkillEntry(entry.id, "proficiency", e.target.value)}
                               />
                             </div>
                           ))}
-                          {skillEntries.length === 0 && (
+                          {editorDraft.skills.length === 0 && (
                             <p className="editor-empty-state">No skills added yet. Empty entries are ignored in the CV.</p>
                           )}
                         </div>
@@ -1763,9 +1889,9 @@ function App() {
                           {editorDraft.education.map((item, index) => (
                             <div className="structured-editor-row" key={`education-${index}`}>
                               <input
-                                value={item}
-                                placeholder="e.g. BSc Computer Science, University Name"
-                                onChange={(e) => updateListField("education", index, e.target.value)}
+                                value={item.degree}
+                                placeholder="Degree"
+                                onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
                               />
                               <button
                                 className="remove-field-btn"
@@ -1796,13 +1922,9 @@ function App() {
                           {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => (
                             <div className="structured-editor-row" key={`${activeSectionId}-${index}`}>
                               <input
-                                value={item}
+                                value={typeof item === "string" ? item : item.language}
                                 onChange={(e) =>
-                                  updateListField(
-                                    activeSectionId === "interests" ? "interests" : "languages",
-                                    index,
-                                    e.target.value,
-                                  )
+                                  updateInterestOrLanguageField(activeSectionId === "interests" ? "interests" : "languages", index, e.target.value)
                                 }
                               />
                               <button
@@ -1968,11 +2090,11 @@ function App() {
                                 title="Click to edit"
                               >
                                 <h2>
-                                  {previewResume.fullName || "Your Name"}
+                                  {previewResume.personalDetails.fullName || "Your Name"}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h2>
-                                <p className="preview-text">{previewResume.primaryTitle || "Primary Title"} – {previewResume.specializations[0] || "Specialization 1"} & {previewResume.specializations[1] || "Specialization 2"}</p>
-                                <p className="preview-text">{previewResume.email || "email@example.com"} · {previewResume.phone || "(000) 000-0000"} · {previewResume.linkedin || "linkedin.com/in/your-profile"} {previewResume.portfolio ? `· ${previewResume.portfolio}` : ""}</p>
+                                <p className="preview-text">{previewResume.personalDetails.professionalTitle || "Professional Title"}</p>
+                                <p className="preview-text">{previewResume.personalDetails.email || "email@example.com"} · {previewResume.personalDetails.phone || "(000) 000-0000"} · {previewResume.personalDetails.linkedIn || "linkedin.com/in/your-profile"} {previewResume.personalDetails.portfolio ? `· ${previewResume.personalDetails.portfolio}` : ""}</p>
                               </div>
                             );
                           }
@@ -2010,9 +2132,11 @@ function App() {
                                   {section.label}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
-                                {previewResume.selectedExperience.map((item) => (
+                                {previewResume.experience.filter((item) => item.visible).sort((a, b) => a.order - b.order).map((item) => (
                                   <div className="bullet-row" key={item.id}>
-                                    <p className="preview-bullet">• {toPlainText(item.text)}</p>
+                                    <p className="preview-text"><strong>{item.jobTitle}</strong> · {item.employer}</p>
+                                    <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
+                                    <p className="preview-bullet">• {toPlainText(item.description)}</p>
                                   </div>
                                 ))}
                               </div>
@@ -2033,7 +2157,7 @@ function App() {
                                   {section.label}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
-                                {previewResume.education.map((item) => <p className="preview-text" key={item}>{item}</p>)}
+                                {previewResume.education.map((item) => <p className="preview-text" key={item.id}>{item.degree}{item.institution ? `, ${item.institution}` : ""} {item.startDate || item.endDate ? `(${item.startDate} - ${item.endDate})` : ""}</p>)}
                               </div>
                             );
                           }
@@ -2052,7 +2176,7 @@ function App() {
                                   {section.label}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
-                                <p className="preview-text">{previewResume.keySkills.join(" • ")}</p>
+                                <p className="preview-text">{previewResume.skills.map((skill) => `${skill.skillName} (${skill.proficiency})`).join(" • ")}</p>
                               </div>
                             );
                           }
@@ -2090,7 +2214,7 @@ function App() {
                                   {section.label}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
-                                <p className="preview-text">{previewResume.languages.join(" · ")}</p>
+                                <p className="preview-text">{previewResume.languages.map((language) => `${language.language} — ${language.level}`).join(" · ")}</p>
                               </div>
                             );
                           }
