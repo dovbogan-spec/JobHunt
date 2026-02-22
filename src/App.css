@@ -1,43 +1,3 @@
-:root {
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    sans-serif;
-  color: #123524;
-  background: #effaf3;
-  --editor-accent: #2f855a;
-  --editor-accent-strong: #1f6f4d;
-  --editor-surface: #ffffff;
-  --editor-surface-muted: #f5f8f6;
-  --editor-border: #cfdbd3;
-  --editor-border-strong: #9eb7aa;
-  --editor-text: #1e3128;
-  --editor-text-muted: #4f655a;
-  --editor-focus-ring: rgba(47, 133, 90, 0.25);
-  --editor-hover: rgba(47, 133, 90, 0.08);
-  --radius-card: 4px;
-  --radius-control: 4px;
-  --radius-button: 4px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --editor-accent: #65c08f;
-    --editor-accent-strong: #85d7a7;
-    --editor-surface: #19231f;
-    --editor-surface-muted: #222f2a;
-    --editor-border: #34473f;
-    --editor-border-strong: #5d7c6f;
-    --editor-text: #e2f0e8;
-    --editor-text-muted: #a6bcaf;
-    --editor-focus-ring: rgba(101, 192, 143, 0.35);
-    --editor-hover: rgba(101, 192, 143, 0.18);
-  }
-}
-
 * {
   box-sizing: border-box;
 }
@@ -81,7 +41,7 @@ button,
 select,
 input,
 textarea {
-  border: 1px solid #b7d8c4;
+  border: 1px solid var(--border);
   padding: 0.58rem 0.75rem;
   transition: all 0.2s ease;
 }
@@ -97,8 +57,8 @@ textarea {
 }
 
 button {
-  background: #ffffff;
-  color: #123524;
+  background: var(--bg-card);
+  color: var(--text);
   min-height: 42px;
   cursor: pointer;
 }
@@ -205,7 +165,7 @@ textarea {
 .history,
 .llm-card,
 .chat-box {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: var(--radius-card);
   border: 1px solid #d2e9da;
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
@@ -265,7 +225,7 @@ textarea {
 }
 
 .resume-editor-pane {
-  background: #ffffff;
+  background: var(--bg-card);
   border-radius: var(--radius-card);
   border: 1px solid #d2e9da;
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
@@ -418,7 +378,7 @@ textarea {
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  border: 1px solid #b7d8c4;
+  border: 1px solid var(--border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -448,8 +408,8 @@ textarea {
 
 .resume-preview.modern {
   position: relative;
-  border: 1px solid var(--editor-border);
-  border-top: 3px solid var(--editor-accent);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
   border-radius: var(--radius-card);
   box-shadow: 0 4px 12px rgba(8, 24, 18, 0.08);
   min-height: calc(100vh - 140px);
@@ -549,7 +509,7 @@ textarea {
   font-weight: 700;
   min-width: 48px;
   text-align: center;
-  color: var(--editor-accent);
+  color: var(--accent);
 }
 
 .toolbar-fullscreen {
@@ -557,13 +517,13 @@ textarea {
 }
 
 .section-picker {
-  border: 1px dashed var(--editor-border-strong);
+  border: 1px dashed var(--border);
   border-radius: var(--radius-card);
   padding: 0.65rem;
   margin-bottom: 0.75rem;
   display: grid;
   gap: 0.5rem;
-  background: var(--editor-surface-muted);
+  background: var(--bg-panel);
 }
 
 .toolbar-fullscreen {
@@ -571,9 +531,9 @@ textarea {
 }
 
 .section-manager-panel {
-  background: var(--editor-surface);
+  background: var(--bg-card);
   border-radius: var(--radius-card);
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   padding: 0.9rem;
   display: flex;
@@ -603,9 +563,9 @@ textarea {
   font-size: 1.3rem;
   line-height: 1;
   font-weight: 700;
-  background: var(--editor-accent);
+  background: var(--accent);
   color: #fff;
-  border-color: var(--editor-accent);
+  border-color: var(--accent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -613,7 +573,7 @@ textarea {
 }
 
 .add-section-btn:hover {
-  background: var(--editor-accent-strong);
+  background: var(--accent-strong);
 }
 
 .add-section-modal {
@@ -692,14 +652,14 @@ textarea {
 }
 
 .section-manager-row {
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   min-height: 48px;
   padding: 0.55rem 0.7rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--editor-surface-muted);
+  background: var(--bg-panel);
   cursor: default;
   transition: all 0.15s ease;
 }
@@ -709,9 +669,9 @@ textarea {
 }
 
 .section-manager-row.active {
-  border-color: var(--editor-accent);
-  box-shadow: 0 0 0 1px var(--editor-accent);
-  background: var(--editor-hover);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--hover);
 }
 
 .section-manager-row.is-hidden {
@@ -719,9 +679,9 @@ textarea {
 }
 
 .section-manager-row.drag-over {
-  border-color: var(--editor-accent);
-  background: var(--editor-hover);
-  box-shadow: 0 0 0 2px var(--editor-focus-ring);
+  border-color: var(--accent);
+  background: var(--hover);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .section-drag-handle {
@@ -784,7 +744,7 @@ textarea {
   flex: 1;
   font-size: 0.9rem;
   font-weight: 650;
-  color: #123524;
+  color: var(--text);
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -872,14 +832,14 @@ textarea {
 }
 
 .section-picker-row.active {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--accent);
   border-radius: var(--radius-card);
 }
 
 .focused-editor-card {
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  background: var(--editor-surface);
+  background: var(--bg-card);
   box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   margin-bottom: 0.8rem;
   display: grid;
@@ -907,7 +867,7 @@ textarea {
 
 .focused-editor-kicker {
   font-size: 0.75rem;
-  color: var(--editor-text-muted);
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -921,10 +881,10 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   padding: 0.35rem;
-  background: var(--editor-surface-muted);
+  background: var(--bg-panel);
 }
 
 .editor-toolbar-strip button {
@@ -933,11 +893,11 @@ textarea {
 }
 
 .rich-editor-surface {
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   min-height: 150px;
   padding: 0.7rem;
-  background: var(--editor-surface);
+  background: var(--bg-card);
 }
 
 .structured-editor-list {
@@ -956,7 +916,7 @@ textarea {
   align-items: center;
   gap: 0.45rem;
   padding-top: 0.25rem;
-  border-top: 1px solid var(--editor-border);
+  border-top: 1px solid var(--border);
 }
 
 .section-save-confirmation {
@@ -988,12 +948,12 @@ textarea {
 
 .top-section-row {
   padding-bottom: 0.4rem;
-  border-bottom: 1px solid var(--editor-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .preview-frame {
   overflow: auto;
-  border: 1px solid var(--editor-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   padding: 1.1rem;
   position: relative;
@@ -1050,11 +1010,11 @@ textarea {
 }
 
 .preview-section-clickable:hover {
-  background: var(--editor-hover);
+  background: var(--hover);
 }
 
 .preview-section-clickable:focus-visible {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -1077,10 +1037,10 @@ textarea {
   font-weight: 700;
   padding: 0.2rem 0.4rem;
   border-radius: var(--radius-control);
-  border: 1px solid var(--editor-accent);
+  border: 1px solid var(--accent);
   width: 100%;
   outline: none;
-  box-shadow: 0 0 0 2px var(--editor-focus-ring);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 /* Pencil icon next to section name in focused editor header */
@@ -1108,13 +1068,13 @@ textarea {
 }
 
 .section-row-label[role="button"]:hover {
-  color: var(--editor-accent);
+  color: var(--accent);
   text-decoration: underline;
 }
 
 .editor-actions-footer {
   justify-content: center;
-  border-top: 1px solid var(--editor-border);
+  border-top: 1px solid var(--border);
   padding-top: 0.7rem;
   margin-top: 0.7rem;
 }
@@ -1145,9 +1105,9 @@ textarea {
 .resume-editor-pane select,
 .resume-editor-pane textarea {
   border-radius: var(--radius-control);
-  border-color: var(--editor-border);
-  background: var(--editor-surface);
-  color: var(--editor-text);
+  border-color: var(--border);
+  background: var(--bg-card);
+  color: var(--text);
 }
 
 .section-manager-panel button:hover,
@@ -1166,8 +1126,8 @@ textarea {
 .resume-editor-pane input:hover,
 .resume-editor-pane select:hover,
 .resume-editor-pane textarea:hover {
-  border-color: var(--editor-accent);
-  box-shadow: 0 0 0 2px var(--editor-focus-ring);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 .section-manager-panel button:focus-visible,
@@ -1186,7 +1146,7 @@ textarea {
 .resume-editor-pane input:focus-visible,
 .resume-editor-pane select:focus-visible,
 .resume-editor-pane textarea:focus-visible {
-  outline: 2px solid var(--editor-accent);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -1462,7 +1422,7 @@ textarea {
 .manual-editor-box {
   width: 100%;
   min-height: 54px;
-  border: 1px solid #b7d8c4;
+  border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: linear-gradient(180deg, #ffffff 0%, #f7fbf8 100%);
   box-shadow: inset 0 1px 1px rgba(12, 46, 31, 0.04);
@@ -1837,7 +1797,7 @@ textarea {
   left: 0;
   z-index: 200;
   background: #fff;
-  border: 1px solid #b7d8c4;
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   min-width: 220px;
@@ -1858,7 +1818,7 @@ textarea {
   background: transparent;
   min-height: unset;
   font-size: 0.9rem;
-  color: #123524;
+  color: var(--text);
   cursor: pointer;
 }
 
