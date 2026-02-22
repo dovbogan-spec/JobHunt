@@ -685,23 +685,40 @@ textarea {
 }
 
 .section-drag-handle {
+  width: 24px;
   min-width: 24px;
+  height: 24px;
   display: inline-grid;
-  grid-template-columns: repeat(2, auto);
-  align-items: center;
-  gap: 0.15rem;
-  color: #7e9f90;
-  font-size: 0.78rem;
-  line-height: 1;
+  grid-template-columns: repeat(2, 4px);
+  grid-template-rows: repeat(3, 4px);
+  place-content: center;
+  gap: 3px;
+  border: none;
+  background: transparent;
   cursor: grab;
   flex-shrink: 0;
   user-select: none;
-  padding: 0 0.2rem;
+  padding: 0;
+}
+
+.section-drag-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: #7e9f90;
+  opacity: 0.7;
 }
 
 .section-manager-row.is-grabbed .section-drag-handle,
-.section-manager-row:active .section-drag-handle {
+.section-manager-row:active .section-drag-handle,
+.section-drag-handle.is-dragging,
+.section-drag-handle:active {
   cursor: grabbing;
+}
+
+.section-manager-row.drag-overlay {
+  box-shadow: 0 14px 28px rgba(15, 51, 38, 0.22);
+  opacity: 0.92;
 }
 
 .section-pencil-btn,

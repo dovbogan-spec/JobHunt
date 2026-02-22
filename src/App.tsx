@@ -1,4 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { jsPDF } from "jspdf";
 import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
@@ -88,6 +104,113 @@ type ResumeData = {
   organization: string;
 };
 type ResumeSection = { id: string; label: string; visible: boolean };
+
+type SortableSectionRowProps = {
+  section: ResumeSection;
+  active: boolean;
+  grabbed: boolean;
+  editMode: boolean;
+  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
+  onOpenEditor: () => void;
+  onEditLabel: () => void;
+  onToggleVisibility: () => void;
+  onUpdateLabel: (label: string) => void;
+  editingLabel: boolean;
+  setEditingLabel: (value: boolean) => void;
+};
+
+function SortableSectionRow({
+  section,
+  active,
+  grabbed,
+  editMode,
+  onKeyDown,
+  onOpenEditor,
+  onEditLabel,
+  onToggleVisibility,
+  onUpdateLabel,
+  editingLabel,
+  setEditingLabel,
+}: SortableSectionRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`section-manager-row reorderable-item ${active && editMode ? "active" : ""} ${!section.visible ? "is-hidden" : ""} ${grabbed || isDragging ? "is-grabbed" : ""}`}
+      tabIndex={0}
+      aria-grabbed={grabbed || isDragging}
+      onKeyDown={onKeyDown}
+    >
+      <button
+        type="button"
+        className={`section-drag-handle ${isDragging ? "is-dragging" : ""}`}
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        {Array.from({ length: 6 }).map((_, dotIndex) => (
+          <span key={`${section.id}-dot-${dotIndex}`} aria-hidden="true" className="section-drag-dot" />
+        ))}
+      </button>
+      <button
+        className="section-pencil-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditLabel();
+          onOpenEditor();
+        }}
+        title={`Edit ${section.label}`}
+        aria-label={`Edit ${section.label} section`}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 20h4l10.2-10.2a1.8 1.8 0 0 0 0-2.6l-1.4-1.4a1.8 1.8 0 0 0-2.6 0L4 16v4Z" />
+          <path d="m12.7 7.3 4 4" />
+        </svg>
+      </button>
+      {editingLabel && !editMode ? (
+        <input
+          className="section-label-edit-input"
+          value={section.label}
+          autoFocus
+          onChange={(e) => onUpdateLabel(e.target.value)}
+          onBlur={() => setEditingLabel(false)}
+          onKeyDown={(e) => e.key === "Enter" && setEditingLabel(false)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="section-row-label" role="button" tabIndex={0} onClick={onOpenEditor} onKeyDown={(e) => e.key === "Enter" && onOpenEditor()}>
+          {section.label || "Untitled section"}
+        </span>
+      )}
+      <button
+        className="section-visibility-btn"
+        onClick={onToggleVisibility}
+        title={section.visible ? "Hide section" : "Show section"}
+        aria-label={section.visible ? `Hide ${section.label} section` : `Show ${section.label} section`}
+      >
+        {section.visible ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M1.8 12s3.7-6 10.2-6 10.2 6 10.2 6-3.7 6-10.2 6S1.8 12 1.8 12Z" />
+            <circle cx="12" cy="12" r="3.2" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 3 21 21" />
+            <path d="M10.5 6.3A11.8 11.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a18.4 18.4 0 0 1-2.8 3.5" />
+            <path d="M6.4 8.1A18.6 18.6 0 0 0 1.8 12S5.5 18 12 18c1.8 0 3.3-.5 4.7-1.1" />
+            <path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
 type SubmissionStatus = "active" | "churned";
 type SubmissionHistory = {
   id: string;
@@ -587,6 +710,7 @@ function App() {
   const [_draggingSection, _setDraggingSection] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
   const [dropTarget, setDropTarget] = useState<DragState>(null);
+  const [activeSectionDragId, setActiveSectionDragId] = useState<string | null>(null);
   const [grabState, setGrabState] = useState<GrabState>(null);
   const [pendingLanguageFocusId, setPendingLanguageFocusId] = useState<string | null>(null);
   const [reorderLiveMessage, setReorderLiveMessage] = useState("");
@@ -670,6 +794,26 @@ function App() {
   const autosaveTimerRef = useRef<number | null>(null);
   const previewResume = editMode ? editorDraft : resume;
   const activeSection = sections.find((section) => section.id === activeSectionId);
+  const sectionDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function handleSectionDragStart(event: DragStartEvent) {
+    setActiveSectionDragId(String(event.active.id));
+  }
+
+  function handleSectionDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveSectionDragId(null);
+    if (!over || active.id === over.id) return;
+    const fromIndex = sections.findIndex((section) => section.id === active.id);
+    const toIndex = sections.findIndex((section) => section.id === over.id);
+    if (fromIndex < 0 || toIndex < 0) return;
+    moveSections(fromIndex, toIndex);
+    announceReorder(`Moved section to position ${toIndex + 1} of ${sections.length}.`);
+  }
+
+  function handleSectionDragCancel() {
+    setActiveSectionDragId(null);
+  }
 
   useEffect(
     () => localStorage.setItem("job-hunt-history", JSON.stringify(history)),
@@ -1436,10 +1580,6 @@ function App() {
     setSections((prev) => moveArrayItem(prev, fromIndex, toIndex));
   }
 
-  function reorderSection(fromId: string, toId: string) {
-    setSections((prev) => moveArrayItemById(prev, fromId, toId));
-  }
-
   function moveDraftListEntries(key: "education" | "languages" | "interests", fromIndex: number, toIndex: number) {
     if (key === "education") {
       setEditorDraft((prev) => ({ ...prev, education: moveArrayItem(prev.education, fromIndex, toIndex) }));
@@ -2185,109 +2325,66 @@ function App() {
                       </div>
                     )}
                     <p className="sr-only" aria-live="polite">{reorderLiveMessage}</p>
-                    <div
-                      className="section-manager-list"
-                      onDragOver={(e) => e.preventDefault()}
+                    <DndContext
+                      sensors={sectionDragSensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={handleSectionDragStart}
+                      onDragEnd={handleSectionDragEnd}
+                      onDragCancel={handleSectionDragCancel}
                     >
-                      {sections.map((section, index) => {
-                        const listId = "sections";
-                        const isGrabbed = grabState?.listId === listId && grabState.itemId === section.id;
-                        const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === section.id;
-                        return (
-                          <div
-                            key={section.id}
-                            className={`section-manager-row reorderable-item ${activeSectionId === section.id && editMode ? "active" : ""} ${!section.visible ? "is-hidden" : ""} ${isDropTarget ? "drag-over" : ""} ${isGrabbed ? "is-grabbed" : ""}`}
-                            draggable
-                            tabIndex={0}
-                            aria-grabbed={isGrabbed}
-                            aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
-                            onKeyDown={(event) =>
-                              handleReorderKeyDown(event, {
-                                listId,
-                                itemId: section.id,
-                                index,
-                                total: sections.length,
-                                label: section.label || `Section ${index + 1}`,
-                                onMove: moveSections,
-                              })
-                            }
-                            onDragStart={() => setDragState({ listId, itemId: section.id })}
-                            onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: section.id }); }}
-                            onDragLeave={() => setDropTarget(null)}
-                            onDrop={() => {
-                              if (dragState?.listId === listId && dragState.itemId !== section.id) {
-                                reorderSection(dragState.itemId, section.id);
-                                announceReorder(`Moved ${section.label} section.`);
-                              }
-                              setDragState(null);
-                              setDropTarget(null);
-                            }}
-                            onDragEnd={() => { setDragState(null); setDropTarget(null); }}
-                          >
-                            <span
-                              className="section-drag-handle"
-                              title="Drag to reorder"
-                              aria-label="Drag to reorder"
-                            >
-                              <span aria-hidden="true">•••</span>
-                              <span aria-hidden="true">•••</span>
-                            </span>
-                            <button
-                              className="section-pencil-btn"
-                              onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}
-                              title={`Edit ${section.label}`}
-                              aria-label={`Edit ${section.label} section`}
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                <path d="M4 20h4l10.2-10.2a1.8 1.8 0 0 0 0-2.6l-1.4-1.4a1.8 1.8 0 0 0-2.6 0L4 16v4Z" />
-                                <path d="m12.7 7.3 4 4" />
-                              </svg>
-                            </button>
-                            {editingLabelId === section.id && !editMode ? (
-                              <input
-                                className="section-label-edit-input"
-                                value={section.label}
-                                autoFocus
-                                onChange={(e) => updateSectionLabel(section.id, e.target.value)}
-                                onBlur={() => setEditingLabelId(null)}
-                                onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
-                                onClick={(e) => e.stopPropagation()}
+                      <SortableContext items={sections.map((section) => section.id)} strategy={verticalListSortingStrategy}>
+                        <div className="section-manager-list">
+                          {sections.map((section, index) => {
+                            const listId = "sections";
+                            const isGrabbed = grabState?.listId === listId && grabState.itemId === section.id;
+                            return (
+                              <SortableSectionRow
+                                key={section.id}
+                                section={section}
+                                active={activeSectionId === section.id}
+                                grabbed={isGrabbed}
+                                editMode={editMode}
+                                onKeyDown={(event) =>
+                                  handleReorderKeyDown(event, {
+                                    listId,
+                                    itemId: section.id,
+                                    index,
+                                    total: sections.length,
+                                    label: section.label || `Section ${index + 1}`,
+                                    onMove: moveSections,
+                                  })
+                                }
+                                onOpenEditor={() => openSectionEditor(section.id)}
+                                onEditLabel={() => setEditingLabelId(section.id)}
+                                onToggleVisibility={() => toggleSection(section.id)}
+                                onUpdateLabel={(label) => updateSectionLabel(section.id, label)}
+                                editingLabel={editingLabelId === section.id}
+                                setEditingLabel={(value) => {
+                                  if (!value && editingLabelId === section.id) {
+                                    setEditingLabelId(null);
+                                  }
+                                }}
                               />
-                            ) : (
-                              <span
-                                className="section-row-label"
-                                role="button"
-                                tabIndex={0}
-                                onClick={() => openSectionEditor(section.id)}
-                                onKeyDown={(e) => e.key === "Enter" && openSectionEditor(section.id)}
-                              >
-                                {section.label || "Untitled section"}
-                              </span>
-                            )}
-                            <button
-                              className="section-visibility-btn"
-                              onClick={() => toggleSection(section.id)}
-                              title={section.visible ? "Hide section" : "Show section"}
-                              aria-label={section.visible ? `Hide ${section.label} section` : `Show ${section.label} section`}
-                            >
-                              {section.visible ? (
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                  <path d="M1.8 12s3.7-6 10.2-6 10.2 6 10.2 6-3.7 6-10.2 6S1.8 12 1.8 12Z" />
-                                  <circle cx="12" cy="12" r="3.2" />
-                                </svg>
-                              ) : (
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                  <path d="M3 3 21 21" />
-                                  <path d="M10.5 6.3A11.8 11.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a18.4 18.4 0 0 1-2.8 3.5" />
-                                  <path d="M6.4 8.1A18.6 18.6 0 0 0 1.8 12S5.5 18 12 18c1.8 0 3.3-.5 4.7-1.1" />
-                                  <path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3" />
-                                </svg>
-                              )}
-                            </button>
+                            );
+                          })}
+                        </div>
+                      </SortableContext>
+                      <DragOverlay>
+                        {activeSectionDragId ? (
+                          <div className="section-manager-row drag-overlay">
+                            <span className="section-drag-handle" aria-hidden="true">
+                              {Array.from({ length: 6 }).map((_, dotIndex) => (
+                                <span key={`overlay-dot-${dotIndex}`} className="section-drag-dot" />
+                              ))}
+                            </span>
+                            <span className="section-row-label">
+                              {sections.find((section) => section.id === activeSectionDragId)?.label || "Section"}
+                            </span>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+
                   {editMode && activeSection && (
                     <section
                       className="focused-editor-card"
@@ -2508,10 +2605,6 @@ function App() {
                                   placeholder="e.g. BSc Computer Science, University Name"
                                   onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
                                 />
-                                <div className="reorder-controls">
-                                  <button type="button" onClick={() => moveDraftListEntries("education", index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
-                                  <button type="button" onClick={() => moveDraftListEntries("education", index, Math.min(editorDraft.education.length - 1, index + 1))} disabled={index === editorDraft.education.length - 1}>Move Down</button>
-                                </div>
                                 <button
                                   className="remove-field-btn"
                                   onClick={() =>
@@ -2679,10 +2772,6 @@ function App() {
                             >
                               <div className="entry-box-header">
                                 <span className="entry-box-type">Entry</span>
-                                <div className="reorder-controls">
-                                  <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
-                                  <button type="button" onClick={() => moveCustomSectionEntry(activeSectionId, index, Math.min((customSectionContents[activeSectionId] || []).length - 1, index + 1))} disabled={index === (customSectionContents[activeSectionId] || []).length - 1}>Move Down</button>
-                                </div>
                                 <button className="remove-entry-btn" onClick={() => removeCustomSectionField(activeSectionId, field.id)} title="Remove">✕</button>
                               </div>
                               <input
