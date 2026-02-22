@@ -9,11 +9,12 @@ type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
 type TabName = "resume" | "coverLetter" | "history" | "llmIntegration";
 type ProficiencyLevel = "Beginner" | "Intermediate" | "Advanced" | "Expert";
 type LanguageLevel =
-  | "Basic"
-  | "Conversational"
-  | "Proficient"
-  | "Fluent"
-  | "Native/Bilingual";
+  | "Beginner (A1)"
+  | "Elementary (A2)"
+  | "Intermediate (B1)"
+  | "Upper-Intermediate (B2)"
+  | "Advanced (C1)"
+  | "Native / Bilingual (C2)";
 type PersonalDetails = {
   fullName: string;
   professionalTitle: string;
@@ -43,7 +44,7 @@ type EducationItem = {
   description: string;
 };
 type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel };
-type ResumeLanguageEntry = { id: string; language: string; level: LanguageLevel };
+type ResumeLanguageEntry = { id: string; name: string; level: LanguageLevel };
 type SkillEntry = { id: string; name: string; level: string };
 type CustomFieldType =
   | "title"
@@ -265,7 +266,7 @@ const initialResume: ResumeData = {
     },
   ],
   interests: ["Product strategy", "Open source", "Mentoring"],
-  languages: [{ id: uuidv4(), language: "English", level: "Fluent" }],
+  languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)" }],
   organization: "",
 };
 const defaultLlmSettings: LlmSettings = {
@@ -287,6 +288,40 @@ const initialSections: ResumeSection[] = [
   { id: "interests", label: "Interests", visible: true },
   { id: "languages", label: "Languages", visible: true },
 ];
+
+const LANGUAGE_LEVEL_OPTIONS: Array<{ value: LanguageLevel; shortLabel: string }> = [
+  { value: "Beginner (A1)", shortLabel: "Beginner" },
+  { value: "Elementary (A2)", shortLabel: "Elementary" },
+  { value: "Intermediate (B1)", shortLabel: "Intermediate" },
+  { value: "Upper-Intermediate (B2)", shortLabel: "Upper-Intermediate" },
+  { value: "Advanced (C1)", shortLabel: "Advanced" },
+  { value: "Native / Bilingual (C2)", shortLabel: "Native / Bilingual" },
+];
+const DEFAULT_LANGUAGE_LEVEL: LanguageLevel = "Intermediate (B1)";
+
+function normalizeLanguageLevel(level: unknown): LanguageLevel {
+  const raw = String(level || "").trim();
+  const aliases: Record<string, LanguageLevel> = {
+    "basic": "Beginner (A1)",
+    "beginner": "Beginner (A1)",
+    "beginner (a1)": "Beginner (A1)",
+    "elementary": "Elementary (A2)",
+    "elementary (a2)": "Elementary (A2)",
+    "conversational": "Intermediate (B1)",
+    "intermediate": "Intermediate (B1)",
+    "intermediate (b1)": "Intermediate (B1)",
+    "upper-intermediate": "Upper-Intermediate (B2)",
+    "upper-intermediate (b2)": "Upper-Intermediate (B2)",
+    "proficient": "Advanced (C1)",
+    "advanced": "Advanced (C1)",
+    "advanced (c1)": "Advanced (C1)",
+    "fluent": "Advanced (C1)",
+    "native/bilingual": "Native / Bilingual (C2)",
+    "native / bilingual": "Native / Bilingual (C2)",
+    "native / bilingual (c2)": "Native / Bilingual (C2)",
+  };
+  return aliases[raw.toLowerCase()] || DEFAULT_LANGUAGE_LEVEL;
+}
 
 function scoreClass(score: number) {
   if (score >= 75) return "score-good";
@@ -386,17 +421,18 @@ function migrateResumeData(value: unknown): ResumeData {
   const languages = Array.isArray(source.languages)
     ? (source.languages as Array<ResumeLanguageEntry | string>).map((item) => {
         if (typeof item !== "string") {
+          const legacyItem = item as ResumeLanguageEntry & { language?: string };
           return {
             id: item.id || uuidv4(),
-            language: item.language || "",
-            level: item.level || "Conversational",
+            name: legacyItem.name || legacyItem.language || "",
+            level: normalizeLanguageLevel(item.level),
           } satisfies ResumeLanguageEntry;
         }
-        const [language, level] = item.split("—").map((part) => part.trim());
+        const [name, level] = item.split("—").map((part) => part.trim());
         return {
           id: uuidv4(),
-          language: language || item,
-          level: (level as LanguageLevel) || "Conversational",
+          name: name || item,
+          level: normalizeLanguageLevel(level),
         };
       })
     : [];
@@ -552,6 +588,7 @@ function App() {
   const [dragState, setDragState] = useState<DragState>(null);
   const [dropTarget, setDropTarget] = useState<DragState>(null);
   const [grabState, setGrabState] = useState<GrabState>(null);
+  const [pendingLanguageFocusId, setPendingLanguageFocusId] = useState<string | null>(null);
   const [reorderLiveMessage, setReorderLiveMessage] = useState("");
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
   const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetails>(
@@ -618,6 +655,15 @@ function App() {
   const [connectivityErrorCode, setConnectivityErrorCode] = useState("");
   const [byokEnabled, setByokEnabled] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!pendingLanguageFocusId) return;
+    const target = document.querySelector<HTMLInputElement>(`[data-language-name-id="${pendingLanguageFocusId}"]`);
+    if (target) {
+      target.focus();
+      setPendingLanguageFocusId(null);
+    }
+  }, [editorDraft.languages, pendingLanguageFocusId]);
   const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const previewRef = useRef<HTMLElement | null>(null);
   const richTextEditorRef = useRef<HTMLDivElement | null>(null);
@@ -1234,7 +1280,7 @@ function App() {
           []).slice(0, 12)).map((skill) => ({ id: uuidv4(), skillName: skill, proficiency: "Advanced" })),
         education: [{ id: uuidv4(), degree: "BSc, Computer Science", institution: "Your University", startDate: "", endDate: "", description: "" }],
         interests: ["Product strategy", "Open source", "Mentoring"],
-        languages: [{ id: uuidv4(), language: "English", level: "Fluent" }],
+        languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)" }],
         experience: parsed.map((item, i) => ({
           id: item.id,
           jobTitle: "",
@@ -1677,11 +1723,26 @@ function App() {
       return {
         ...prev,
         languages: prev.languages.map((item, itemIndex) =>
-          itemIndex === index ? { ...item, language: value } : item,
+          itemIndex === index ? { ...item, name: value } : item,
         ),
       };
     });
   }
+
+  function updateLanguageLevel(index: number, level: LanguageLevel) {
+    setEditorDraft((prev) => ({
+      ...prev,
+      languages: prev.languages.map((item, itemIndex) => (itemIndex === index ? { ...item, level } : item)),
+    }));
+  }
+
+  function removeLanguage(index: number) {
+    setEditorDraft((prev) => ({
+      ...prev,
+      languages: prev.languages.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }
+
   function appendListField(key: "education" | "interests" | "languages") {
     setEditorDraft((prev) => {
       if (key === "education") {
@@ -1691,9 +1752,11 @@ function App() {
         };
       }
       if (key === "languages") {
+        const languageId = uuidv4();
+        setPendingLanguageFocusId(languageId);
         return {
           ...prev,
-          languages: [...prev.languages, { id: uuidv4(), language: "", level: "Conversational" }],
+          languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL }],
         };
       }
       return { ...prev, interests: [...prev.interests, ""] };
@@ -2483,7 +2546,7 @@ function App() {
                             const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
                             const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
                             return (
-                              <div className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
+                              <div className={`structured-editor-row reorderable-item ${key === "languages" ? "language-row" : ""} ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
                                 draggable
                                 tabIndex={0}
                                 aria-grabbed={isGrabbed}
@@ -2500,9 +2563,9 @@ function App() {
                                 onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId }); }}
                                 onDragLeave={() => setDropTarget(null)}
                                 onDrop={() => {
-                                  if (dragState?.listId === listId && key === "languages") {
-                                    const fromIndex = editorDraft.languages.findIndex((_, i) => `${key}-${i}` === dragState.itemId);
-                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("languages", fromIndex, index);
+                                  if (dragState?.listId === listId) {
+                                    const fromIndex = (editorDraft[key] as Array<unknown>).findIndex((_, i) => `${key}-${i}` === dragState.itemId);
+                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries(key === "languages" ? "languages" : "interests", fromIndex, index);
                                   }
                                   setDragState(null);
                                   setDropTarget(null);
@@ -2510,7 +2573,9 @@ function App() {
                                 onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
                                 <input
-                                  value={typeof item === "string" ? item : item.language}
+                                  value={typeof item === "string" ? item : item.name}
+                                  data-language-name-id={typeof item === "string" ? undefined : item.id}
+                                  placeholder={key === "languages" ? "Language (e.g., English)" : ""}
                                   onChange={(e) =>
                                     updateInterestOrLanguageField(
                                       activeSectionId === "interests" ? "interests" : "languages",
@@ -2519,25 +2584,41 @@ function App() {
                                     )
                                   }
                                 />
-                                {key === "languages" && (
-                                  <div className="reorder-controls">
-                                    <button type="button" onClick={() => moveDraftListEntries("languages", index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
-                                    <button type="button" onClick={() => moveDraftListEntries("languages", index, Math.min(editorDraft.languages.length - 1, index + 1))} disabled={index === editorDraft.languages.length - 1}>Move Down</button>
-                                  </div>
+                                {key === "languages" && typeof item !== "string" && (
+                                  <>
+                                    <select
+                                      value={item.level}
+                                      onChange={(event) => updateLanguageLevel(index, event.target.value as LanguageLevel)}
+                                    >
+                                      {LANGUAGE_LEVEL_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.shortLabel}</option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      className="language-trash-btn"
+                                      aria-label="Remove language"
+                                      onClick={() => removeLanguage(index)}
+                                      title="Remove language"
+                                    >
+                                      🗑
+                                    </button>
+                                  </>
                                 )}
-                                <button
-                                  className="remove-field-btn"
-                                  onClick={() => {
-                                    const key = activeSectionId === "interests" ? "interests" : "languages";
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      [key]: (prev[key] as string[]).filter((_, i) => i !== index),
-                                    }));
-                                  }}
-                                  title="Remove"
-                                >
-                                  −
-                                </button>
+                                {key === "interests" && (
+                                  <button
+                                    className="remove-field-btn"
+                                    onClick={() => {
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        interests: prev.interests.filter((_, i) => i !== index),
+                                      }));
+                                    }}
+                                    title="Remove"
+                                  >
+                                    −
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -2796,7 +2877,7 @@ function App() {
                                   {section.label}
                                   <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
                                 </h4>
-                                <p className="preview-text">{previewResume.languages.map((language) => `${language.language} — ${language.level}`).join(" · ")}</p>
+                                <p className="preview-text">{previewResume.languages.map((language) => `${language.name} — ${language.level}`).join(" · ")}</p>
                               </div>
                             );
                           }
