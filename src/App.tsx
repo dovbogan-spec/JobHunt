@@ -44,8 +44,6 @@ type EducationItem = {
 };
 type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel };
 type ResumeLanguageEntry = { id: string; language: string; level: LanguageLevel };
-type CustomSectionEntry = { id: string; title: string; content: string };
-type PersonalDetailField = { id: string; label: string; value: string };
 type SkillEntry = { id: string; name: string; level: string };
 type CustomFieldType =
   | "title"
@@ -152,9 +150,9 @@ type ExperienceEditorItem = {
 type ResumeDraftSnapshot = {
   resume: ResumeData;
   editorDraft: ResumeData;
-  personalDetailFields: PersonalDetailField[];
+  personalDetailFields: PersonalDetails;
   skillEntries: SkillEntry[];
-  customSectionContents: Record<string, CustomSectionEntry[]>;
+  customSectionContents: Record<string, CustomSectionField[]>;
   sections: ResumeSection[];
   activeSectionId: string;
   editMode: boolean;
@@ -544,28 +542,22 @@ function App() {
   const [chatMessages, setChatMessages] = useState<string[]>([
     "Hi! I can help complete missing CV details.",
   ]);
-  const [zoom, setZoom] = useState(1);
+  const [_zoom, _setZoom] = useState(1);
   const [editMode, setEditMode] = useState(initialDraftSnapshot?.editMode ?? false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(
     initialDraftSnapshot?.editorDraft ?? initialDraftSnapshot?.resume ?? initialResume,
   );
-  const [_experienceEditor, setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
-  const [draggingSection, setDraggingSection] = useState<string | null>(null);
+  const [_experienceEditor, _setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
+  const [_draggingSection, _setDraggingSection] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState>(null);
   const [dropTarget, setDropTarget] = useState<DragState>(null);
   const [grabState, setGrabState] = useState<GrabState>(null);
   const [reorderLiveMessage, setReorderLiveMessage] = useState("");
   const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
-  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetailField[]>(
-    initialDraftSnapshot?.personalDetailFields ?? [
-      { id: "pd-fullname", label: "Full Name", value: "" },
-      { id: "pd-title", label: "Title", value: "" },
-      { id: "pd-email", label: "Email", value: "" },
-      { id: "pd-phone", label: "Phone", value: "" },
-      { id: "pd-linkedin", label: "LinkedIn", value: "" },
-    ],
+  const [personalDetailFields, setPersonalDetailFields] = useState<PersonalDetails>(
+    initialDraftSnapshot?.personalDetailFields ?? editorDraft.personalDetails,
   );
-  const [skillEntries, setSkillEntries] = useState<SkillEntry[]>(
+  const [skillEntries, _setSkillEntries] = useState<SkillEntry[]>(
     initialDraftSnapshot?.skillEntries ?? [],
   );
   const [customSectionContents, setCustomSectionContents] = useState<Record<string, CustomSectionField[]>>(
@@ -576,8 +568,8 @@ function App() {
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SECTION_TEMPLATES[0].id);
   const [customSectionTitleDraft, setCustomSectionTitleDraft] = useState("New Section");
   const [customFieldBlueprints, setCustomFieldBlueprints] = useState<CustomFieldBlueprint[]>([]);
-  const [sectionPickerOpen, setSectionPickerOpen] = useState(false);
-  const [sectionListCollapsed, setSectionListCollapsed] = useState(false);
+  const [_sectionPickerOpen, _setSectionPickerOpen] = useState(false);
+  const [_sectionListCollapsed, _setSectionListCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const [hasGeneratedResume, setHasGeneratedResume] = useState(false);
@@ -684,19 +676,9 @@ function App() {
   }, [activeSectionId, sections]);
 
   function buildCanonicalResume(): ResumeData {
-    const findField = (label: string) =>
-      personalDetailFields.find((f) => f.label === label)?.value ?? "";
-    const normalizedSkills = skillEntries
-      .map((entry) => entry.name.trim())
-      .filter(Boolean);
     return {
       ...editorDraft,
-      fullName: findField("Full Name") || editorDraft.fullName,
-      primaryTitle: findField("Title") || editorDraft.primaryTitle,
-      email: findField("Email") || editorDraft.email,
-      phone: findField("Phone") || editorDraft.phone,
-      linkedin: findField("LinkedIn") || editorDraft.linkedin,
-      keySkills: normalizedSkills.length ? normalizedSkills : editorDraft.keySkills,
+      personalDetails: personalDetailFields,
     };
   }
 
@@ -1412,16 +1394,14 @@ function App() {
     setSections((prev) => moveArrayItemById(prev, fromId, toId));
   }
 
-  function moveExperienceEntries(fromIndex: number, toIndex: number) {
-    setEditorDraft((prev) => ({ ...prev, selectedExperience: moveArrayItem(prev.selectedExperience, fromIndex, toIndex) }));
-  }
-
-  function moveSkillEntries(fromIndex: number, toIndex: number) {
-    setSkillEntries((prev) => moveArrayItem(prev, fromIndex, toIndex));
-  }
-
   function moveDraftListEntries(key: "education" | "languages" | "interests", fromIndex: number, toIndex: number) {
-    setEditorDraft((prev) => ({ ...prev, [key]: moveArrayItem(prev[key], fromIndex, toIndex) }));
+    if (key === "education") {
+      setEditorDraft((prev) => ({ ...prev, education: moveArrayItem(prev.education, fromIndex, toIndex) }));
+    } else if (key === "languages") {
+      setEditorDraft((prev) => ({ ...prev, languages: moveArrayItem(prev.languages, fromIndex, toIndex) }));
+    } else {
+      setEditorDraft((prev) => ({ ...prev, interests: moveArrayItem(prev.interests, fromIndex, toIndex) }));
+    }
   }
 
   function moveCustomSectionEntry(sectionId: string, fromIndex: number, toIndex: number) {
@@ -1574,14 +1554,6 @@ function App() {
       }),
     }));
   }
-  function startEditingResume() {
-    const migrated = migrateResumeData(resume);
-    setEditorDraft(migrated);
-    setPersonalDetailFields(migrated.personalDetails);
-    setActiveSectionId(
-      sections.find((section) => section.visible)?.id ?? sections[0]?.id ?? "header",
-    );
-    setEditMode(true);
   function addCustomSectionListItem(sectionId: string, fieldId: string) {
     setCustomSectionContents((prev) => ({
       ...prev,
@@ -1598,18 +1570,6 @@ function App() {
         return { ...field, items: (field.items || []).filter((_, i) => i !== itemIndex) };
       }),
     }));
-  }
-  function moveCustomSectionField(sectionId: string, fieldId: string, direction: -1 | 1) {
-    setCustomSectionContents((prev) => {
-      const fields = prev[sectionId] || [];
-      const currentIndex = fields.findIndex((field) => field.id === fieldId);
-      const targetIndex = currentIndex + direction;
-      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= fields.length) return prev;
-      const nextFields = [...fields];
-      const [field] = nextFields.splice(currentIndex, 1);
-      nextFields.splice(targetIndex, 0, field);
-      return { ...prev, [sectionId]: nextFields };
-    });
   }
   function removeCustomSectionField(sectionId: string, fieldId: string) {
     setCustomSectionContents((prev) => ({
@@ -2408,74 +2368,6 @@ function App() {
                           {editorDraft.experience.length === 0 && (
                             <p className="editor-empty-state">No experience entries yet. Add your work history above.</p>
                           )}
-                          {editorDraft.selectedExperience.map((item, index) => {
-                            const listId = "experience-entries";
-                            const isGrabbed = grabState?.listId === listId && grabState.itemId === item.id;
-                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === item.id;
-                            return (
-                              <div
-                                className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
-                                key={item.id}
-                                draggable
-                                tabIndex={0}
-                                aria-grabbed={isGrabbed}
-                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
-                                onKeyDown={(event) => handleReorderKeyDown(event, {
-                                  listId,
-                                  itemId: item.id,
-                                  index,
-                                  total: editorDraft.selectedExperience.length,
-                                  label: `Experience entry ${index + 1}`,
-                                  onMove: moveExperienceEntries,
-                                })}
-                                onDragStart={() => setDragState({ listId, itemId: item.id })}
-                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: item.id }); }}
-                                onDragLeave={() => setDropTarget(null)}
-                                onDrop={() => {
-                                  if (dragState?.listId === listId && dragState.itemId !== item.id) {
-                                    setEditorDraft((prev) => ({ ...prev, selectedExperience: moveArrayItemById(prev.selectedExperience, dragState.itemId, item.id) }));
-                                  }
-                                  setDragState(null);
-                                  setDropTarget(null);
-                                }}
-                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
-                              >
-                                <textarea
-                                  className="manual-editor-box"
-                                  value={toPlainText(item.text)}
-                                  rows={3}
-                                  placeholder="Experience bullet point…"
-                                  onChange={(e) =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      selectedExperience: prev.selectedExperience.map((si, i) =>
-                                        i === index ? { ...si, text: e.target.value } : si,
-                                      ),
-                                    }))
-                                  }
-                                />
-                                <div className="reorder-controls">
-                                  <button type="button" onClick={() => moveExperienceEntries(index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
-                                  <button type="button" onClick={() => moveExperienceEntries(index, Math.min(editorDraft.selectedExperience.length - 1, index + 1))} disabled={index === editorDraft.selectedExperience.length - 1}>Move Down</button>
-                                </div>
-                                <button
-                                  className="remove-field-btn"
-                                  onClick={() =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      selectedExperience: prev.selectedExperience.filter((_, i) => i !== index),
-                                    }))
-                                  }
-                                  title="Remove"
-                                >
-                                  −
-                                </button>
-                              </div>
-                            );
-                          })}
-                          {editorDraft.selectedExperience.length === 0 && (
-                            <p className="editor-empty-state">No experience entries yet.</p>
-                          )}
                         </div>
                       )}
 
@@ -2505,62 +2397,6 @@ function App() {
                           ))}
                           {editorDraft.skills.length === 0 && (
                             <p className="editor-empty-state">No skills added yet.</p>
-                          )}
-                          {skillEntries.map((entry, index) => {
-                            const listId = "skills-entries";
-                            const isGrabbed = grabState?.listId === listId && grabState.itemId === entry.id;
-                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === entry.id;
-                            return (
-                              <div
-                                key={entry.id}
-                                className={`entry-box skill-entry-box reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`}
-                                draggable
-                                tabIndex={0}
-                                aria-grabbed={isGrabbed}
-                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
-                                onKeyDown={(event) => handleReorderKeyDown(event, {
-                                  listId,
-                                  itemId: entry.id,
-                                  index,
-                                  total: skillEntries.length,
-                                  label: entry.name || `Skill ${index + 1}`,
-                                  onMove: moveSkillEntries,
-                                })}
-                                onDragStart={() => setDragState({ listId, itemId: entry.id })}
-                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId: entry.id }); }}
-                                onDragLeave={() => setDropTarget(null)}
-                                onDrop={() => {
-                                  if (dragState?.listId === listId && dragState.itemId !== entry.id) {
-                                    setSkillEntries((prev) => moveArrayItemById(prev, dragState.itemId, entry.id));
-                                  }
-                                  setDragState(null);
-                                  setDropTarget(null);
-                                }}
-                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
-                              >
-                                <div className="entry-box-header">
-                                  <span className="entry-box-type">Skill</span>
-                                  <div className="reorder-controls">
-                                    <button type="button" onClick={() => moveSkillEntries(index, Math.max(0, index - 1))} disabled={index === 0}>Move Up</button>
-                                    <button type="button" onClick={() => moveSkillEntries(index, Math.min(skillEntries.length - 1, index + 1))} disabled={index === skillEntries.length - 1}>Move Down</button>
-                                  </div>
-                                  <button className="remove-entry-btn" onClick={() => removeSkillEntry(entry.id)} title="Remove">✕</button>
-                                </div>
-                                <input
-                                  value={entry.name}
-                                  placeholder="Skill name"
-                                  onChange={(e) => updateSkillEntry(entry.id, "name", e.target.value)}
-                                />
-                                <input
-                                  value={entry.level}
-                                  placeholder="Level (e.g. Expert, Intermediate)"
-                                  onChange={(e) => updateSkillEntry(entry.id, "level", e.target.value)}
-                                />
-                              </div>
-                            );
-                          })}
-                          {skillEntries.length === 0 && (
-                            <p className="editor-empty-state">No skills added yet. Empty entries are ignored in the CV.</p>
                           )}
                         </div>
                       )}
