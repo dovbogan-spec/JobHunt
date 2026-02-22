@@ -18,6 +18,9 @@
   --editor-text-muted: #4f655a;
   --editor-focus-ring: rgba(47, 133, 90, 0.25);
   --editor-hover: rgba(47, 133, 90, 0.08);
+  --radius-card: 4px;
+  --radius-control: 4px;
+  --radius-button: 4px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -78,10 +81,19 @@ button,
 select,
 input,
 textarea {
-  border-radius: 0.65rem;
   border: 1px solid #b7d8c4;
   padding: 0.58rem 0.75rem;
   transition: all 0.2s ease;
+}
+
+button {
+  border-radius: var(--radius-button);
+}
+
+select,
+input,
+textarea {
+  border-radius: var(--radius-control);
 }
 
 button {
@@ -194,7 +206,7 @@ textarea {
 .llm-card,
 .chat-box {
   background: #ffffff;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-card);
   border: 1px solid #d2e9da;
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
 }
@@ -254,7 +266,7 @@ textarea {
 
 .resume-editor-pane {
   background: #ffffff;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-card);
   border: 1px solid #d2e9da;
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
   padding: 1rem;
@@ -301,7 +313,7 @@ textarea {
 
 .panel-window {
   border: 1px solid #c5dfd0;
-  border-radius: 2.2rem;
+  border-radius: var(--radius-card);
   padding: 1rem;
   background: linear-gradient(180deg, #f6fcf8 0%, #eef7f1 100%);
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
@@ -322,7 +334,7 @@ textarea {
   width: 38px;
   min-width: 38px;
   min-height: 38px;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   padding: 0;
   font-size: 1.05rem;
 }
@@ -346,7 +358,7 @@ textarea {
   gap: 0.22rem;
   background: #f4fbf6;
   border: 1px solid #dcf0e3;
-  border-radius: 0.55rem;
+  border-radius: var(--radius-card);
   padding: 0.5rem;
 }
 
@@ -385,7 +397,7 @@ textarea {
 .insight-icon-btn {
   width: 50px;
   min-height: 40px;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   padding: 0 0.6rem;
   font-weight: 700;
   background: #fff;
@@ -438,7 +450,7 @@ textarea {
   position: relative;
   border: 1px solid var(--editor-border);
   border-top: 3px solid var(--editor-accent);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   box-shadow: 0 4px 12px rgba(8, 24, 18, 0.08);
   min-height: calc(100vh - 140px);
   max-height: calc(100vh - 140px);
@@ -496,7 +508,7 @@ textarea {
 
 .resume-preview.professional .bullet-row {
   border: 1.5px solid #4fd1c5;
-  border-radius: 6px;
+  border-radius: var(--radius-card);
   padding: 0.55rem;
   margin-bottom: 0.45rem;
 }
@@ -525,7 +537,7 @@ textarea {
   width: 38px;
   min-height: 38px;
   min-width: 38px;
-  border-radius: 4px;
+  border-radius: var(--radius-button);
   padding: 0;
   font-size: 1.15rem;
   line-height: 1;
@@ -546,7 +558,7 @@ textarea {
 
 .section-picker {
   border: 1px dashed var(--editor-border-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   padding: 0.65rem;
   margin-bottom: 0.75rem;
   display: grid;
@@ -560,7 +572,7 @@ textarea {
 
 .section-manager-panel {
   background: var(--editor-surface);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--editor-border);
   box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   padding: 0.9rem;
@@ -586,7 +598,7 @@ textarea {
   width: 32px;
   min-width: 32px;
   min-height: 32px;
-  border-radius: 4px;
+  border-radius: var(--radius-button);
   padding: 0;
   font-size: 1.3rem;
   line-height: 1;
@@ -606,7 +618,7 @@ textarea {
 
 .add-section-modal {
   border: 1px solid #cde2d6;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-card);
   background: #f8fcf9;
   padding: 0.65rem;
   display: grid;
@@ -681,7 +693,7 @@ textarea {
 
 .section-manager-row {
   border: 1px solid var(--editor-border);
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   min-height: 48px;
   padding: 0.55rem 0.7rem;
   display: flex;
@@ -739,7 +751,7 @@ textarea {
   min-height: 30px;
   min-width: 30px;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   border: 1px solid #bed3c5;
   background: #eaf4ef;
   color: #285647;
@@ -861,12 +873,12 @@ textarea {
 
 .section-picker-row.active {
   outline: 2px solid var(--editor-accent);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
 }
 
 .focused-editor-card {
   border: 1px solid var(--editor-border);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   background: var(--editor-surface);
   box-shadow: 0 2px 8px rgba(8, 24, 18, 0.08);
   margin-bottom: 0.8rem;
@@ -910,7 +922,7 @@ textarea {
   flex-wrap: wrap;
   gap: 0.35rem;
   border: 1px solid var(--editor-border);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   padding: 0.35rem;
   background: var(--editor-surface-muted);
 }
@@ -922,7 +934,7 @@ textarea {
 
 .rich-editor-surface {
   border: 1px solid var(--editor-border);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   min-height: 150px;
   padding: 0.7rem;
   background: var(--editor-surface);
@@ -954,7 +966,7 @@ textarea {
   color: #2e7d32;
   background: #eaf7ee;
   border: 1px solid #bfe3c6;
-  border-radius: 999px;
+  border-radius: var(--radius-card);
   padding: 0.1rem 0.55rem;
   animation: section-save-confirm-in 240ms ease-out;
 }
@@ -982,7 +994,7 @@ textarea {
 .preview-frame {
   overflow: auto;
   border: 1px solid var(--editor-border);
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   padding: 1.1rem;
   position: relative;
   display: grid;
@@ -1031,7 +1043,7 @@ textarea {
 /* Clickable sections in CV preview */
 .preview-section-clickable {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-card);
   transition: background 0.15s ease;
   padding: 0.25rem 0.35rem;
   margin: -0.25rem -0.35rem;
@@ -1064,7 +1076,7 @@ textarea {
   font-size: 1rem;
   font-weight: 700;
   padding: 0.2rem 0.4rem;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--editor-accent);
   width: 100%;
   outline: none;
@@ -1110,7 +1122,7 @@ textarea {
 .preview-bottom-actions button {
   min-height: 36px;
   padding: 0.35rem 0.9rem;
-  border-radius: 4px;
+  border-radius: var(--radius-button);
   font-size: 0.85rem;
   font-weight: 600;
   width: auto;
@@ -1132,7 +1144,7 @@ textarea {
 .resume-editor-pane input,
 .resume-editor-pane select,
 .resume-editor-pane textarea {
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   border-color: var(--editor-border);
   background: var(--editor-surface);
   color: var(--editor-text);
@@ -1209,7 +1221,7 @@ textarea {
 }
 
 .requirements-checklist li {
-  border-radius: 0.45rem;
+  border-radius: var(--radius-card);
   padding: 0.35rem;
 }
 
@@ -1217,7 +1229,7 @@ textarea {
   margin-top: 0.9rem;
   background: #fff;
   border: 1px solid #d2e9da;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-card);
   box-shadow: 0 8px 24px rgba(31, 111, 77, 0.08);
   padding: 0.9rem;
   display: grid;
@@ -1233,7 +1245,7 @@ textarea {
 }
 
 .check-results-inline li {
-  border-radius: 0.45rem;
+  border-radius: var(--radius-card);
   padding: 0.35rem 0.45rem;
   display: flex;
   justify-content: space-between;
@@ -1337,7 +1349,7 @@ textarea {
 
 .history-status {
   border: 1px solid #b8d8c5;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-card);
   padding: 0.2rem 0.4rem;
   background: #fff;
   color: #20553d;
@@ -1362,7 +1374,7 @@ textarea {
   border: none;
   background: #fee2e2;
   color: #c93030;
-  border-radius: 999px;
+  border-radius: var(--radius-button);
   width: 1.8rem;
   height: 1.8rem;
   display: inline-flex;
@@ -1407,7 +1419,7 @@ textarea {
 .chat-feed {
   border: 1px solid #cee6d7;
   background: #f6fcf8;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-card);
   padding: 0.6rem;
   max-height: 58vh;
   overflow: auto;
@@ -1416,7 +1428,7 @@ textarea {
 .chat-feed p {
   margin: 0 0 0.42rem;
   padding: 0.35rem 0.45rem;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-card);
   background: #fff;
 }
 
@@ -1451,7 +1463,7 @@ textarea {
   width: 100%;
   min-height: 54px;
   border: 1px solid #b7d8c4;
-  border-radius: 0.85rem;
+  border-radius: var(--radius-control);
   background: linear-gradient(180deg, #ffffff 0%, #f7fbf8 100%);
   box-shadow: inset 0 1px 1px rgba(12, 46, 31, 0.04);
   padding: 0.62rem 0.75rem;
@@ -1466,7 +1478,7 @@ textarea {
 
 .section-edit-shell {
   border: 1px solid #d6e8df;
-  border-radius: 1rem;
+  border-radius: var(--radius-card);
   padding: 0.75rem;
   background: linear-gradient(180deg, #ffffff 0%, #f7fbf9 100%);
 }
@@ -1474,7 +1486,7 @@ textarea {
 .experience-main-box {
   position: relative;
   border: 1px solid #c8dfd1;
-  border-radius: 0.95rem;
+  border-radius: var(--radius-card);
   background: #fff;
   box-shadow: 0 14px 24px rgba(10, 44, 30, 0.08);
   margin-bottom: 0.85rem;
@@ -1509,7 +1521,7 @@ textarea {
 .field-add-menu button {
   border: 1px solid #cde2d6;
   background: #f8fcf9;
-  border-radius: 0.55rem;
+  border-radius: var(--radius-button);
   padding: 0.4rem;
   transition: all 0.18s ease;
 }
@@ -1530,7 +1542,7 @@ textarea {
 .experience-sub-box {
   position: relative;
   border: 1px solid #d4e7dc;
-  border-radius: 0.8rem;
+  border-radius: var(--radius-card);
   background: #fbfefd;
   padding: 0.45rem;
 }
@@ -1570,7 +1582,7 @@ textarea {
   border: 1px solid #c7ddd0;
   background: #f2faf5;
   color: #315f4d;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-button);
   font-size: 0.72rem;
   line-height: 1;
   cursor: pointer;
@@ -1677,7 +1689,7 @@ textarea {
   min-height: 28px;
   min-width: 28px;
   padding: 0;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-button);
   font-size: 1rem;
   line-height: 1;
   background: #fee2e2;
@@ -1698,7 +1710,7 @@ textarea {
 /* ─── Entry boxes (Experience, Education, Custom) ─── */
 .entry-box {
   border: 1px solid #c8dfd1;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-card);
   background: #fff;
   padding: 0.75rem;
   display: grid;
@@ -1751,7 +1763,7 @@ textarea {
 .current-label {
   background: #d1fae5;
   color: #064e3b;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-card);
   padding: 0.35rem 0.6rem;
   font-size: 0.82rem;
   font-weight: 600;
@@ -1826,7 +1838,7 @@ textarea {
   z-index: 200;
   background: #fff;
   border: 1px solid #b7d8c4;
-  border-radius: 0.65rem;
+  border-radius: var(--radius-card);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   min-width: 220px;
   padding: 0.35rem 0;
