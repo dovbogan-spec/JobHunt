@@ -1395,7 +1395,13 @@ function App() {
   }
 
   function moveDraftListEntries(key: "education" | "languages" | "interests", fromIndex: number, toIndex: number) {
-    setEditorDraft((prev) => ({ ...prev, [key]: moveArrayItem(prev[key] as unknown[], fromIndex, toIndex) }));
+    if (key === "education") {
+      setEditorDraft((prev) => ({ ...prev, education: moveArrayItem(prev.education, fromIndex, toIndex) }));
+    } else if (key === "languages") {
+      setEditorDraft((prev) => ({ ...prev, languages: moveArrayItem(prev.languages, fromIndex, toIndex) }));
+    } else {
+      setEditorDraft((prev) => ({ ...prev, interests: moveArrayItem(prev.interests, fromIndex, toIndex) }));
+    }
   }
 
   function moveCustomSectionEntry(sectionId: string, fromIndex: number, toIndex: number) {
