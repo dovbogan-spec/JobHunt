@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "npm run check:no-dark && eslint .",
     "preview": "vite preview",
     "smoke:upload": "node scripts/smoke-upload.mjs",
     "test": "tsx --test test/**/*.test.ts",
-    "smoke:e2e": "tsx scripts/smoke.ts"
+    "smoke:e2e": "tsx scripts/smoke.ts",
+    "check:no-dark": "node scripts/check-no-dark.js"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
