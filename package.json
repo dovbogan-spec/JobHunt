@@ -14,6 +14,9 @@
     "check:no-dark": "node scripts/check-no-dark.js"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@mozilla/readability": "^0.6.0",
     "@react-pdf/renderer": "^4.1.6",
     "@vercel/analytics": "^1.6.1",
@@ -41,10 +44,10 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "tsx": "^4.20.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
-    "tsx": "^4.20.6",
     "yazl": "^3.3.1"
   }
 }
