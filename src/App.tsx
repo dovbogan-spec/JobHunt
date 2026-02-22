@@ -2161,14 +2161,24 @@ function App() {
                             }}
                             onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                           >
-                            <span className="section-drag-handle" title="Drag to reorder" aria-hidden="true">⋮⋮</span>
+                            <span
+                              className="section-drag-handle"
+                              title="Drag to reorder"
+                              aria-label="Drag to reorder"
+                            >
+                              <span aria-hidden="true">•••</span>
+                              <span aria-hidden="true">•••</span>
+                            </span>
                             <button
                               className="section-pencil-btn"
                               onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}
-                              title={`Rename ${section.label}`}
-                              aria-label={`Rename ${section.label} section`}
+                              title={`Edit ${section.label}`}
+                              aria-label={`Edit ${section.label} section`}
                             >
-                              ✏️
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M4 20h4l10.2-10.2a1.8 1.8 0 0 0 0-2.6l-1.4-1.4a1.8 1.8 0 0 0-2.6 0L4 16v4Z" />
+                                <path d="m12.7 7.3 4 4" />
+                              </svg>
                             </button>
                             {editingLabelId === section.id && !editMode ? (
                               <input
@@ -2191,31 +2201,25 @@ function App() {
                                 {section.label || "Untitled section"}
                               </span>
                             )}
-                            <div className="reorder-controls">
-                              <button
-                                type="button"
-                                onClick={() => moveSections(index, Math.max(0, index - 1))}
-                                disabled={index === 0}
-                                aria-label={`Move ${section.label} up`}
-                              >
-                                ↑
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => moveSections(index, Math.min(sections.length - 1, index + 1))}
-                                disabled={index === sections.length - 1}
-                                aria-label={`Move ${section.label} down`}
-                              >
-                                ↓
-                              </button>
-                            </div>
                             <button
                               className="section-visibility-btn"
                               onClick={() => toggleSection(section.id)}
                               title={section.visible ? "Hide section" : "Show section"}
-                              aria-label={section.visible ? "Hide section" : "Show section"}
+                              aria-label={section.visible ? `Hide ${section.label} section` : `Show ${section.label} section`}
                             >
-                              {section.visible ? "👁" : "🚫"}
+                              {section.visible ? (
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M1.8 12s3.7-6 10.2-6 10.2 6 10.2 6-3.7 6-10.2 6S1.8 12 1.8 12Z" />
+                                  <circle cx="12" cy="12" r="3.2" />
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M3 3 21 21" />
+                                  <path d="M10.5 6.3A11.8 11.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a18.4 18.4 0 0 1-2.8 3.5" />
+                                  <path d="M6.4 8.1A18.6 18.6 0 0 0 1.8 12S5.5 18 12 18c1.8 0 3.3-.5 4.7-1.1" />
+                                  <path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3" />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         );

@@ -552,6 +552,8 @@ textarea {
   display: grid;
   gap: 0.5rem;
   background: var(--editor-surface-muted);
+}
+
 .toolbar-fullscreen {
   pointer-events: auto;
 }
@@ -673,24 +675,25 @@ textarea {
 .section-manager-list {
   overflow: auto;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.55rem;
   align-content: start;
 }
 
 .section-manager-row {
   border: 1px solid var(--editor-border);
-  border-radius: 4px;
-  padding: 0.4rem 0.5rem;
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 0.55rem 0.7rem;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.5rem;
   background: var(--editor-surface-muted);
-  cursor: grab;
+  cursor: default;
   transition: all 0.15s ease;
 }
 
 .section-manager-row:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .section-manager-row.active {
@@ -710,57 +713,80 @@ textarea {
 }
 
 .section-drag-handle {
-  color: #9bbaa8;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  min-width: 24px;
+  display: inline-grid;
+  grid-template-columns: repeat(2, auto);
+  align-items: center;
+  gap: 0.15rem;
+  color: #7e9f90;
+  font-size: 0.78rem;
+  line-height: 1;
   cursor: grab;
   flex-shrink: 0;
   user-select: none;
-  padding: 0 0.15rem;
+  padding: 0 0.2rem;
 }
 
-.section-pencil-btn {
-  min-height: 28px;
-  min-width: 28px;
+.section-manager-row.is-grabbed .section-drag-handle,
+.section-manager-row:active .section-drag-handle {
+  cursor: grabbing;
+}
+
+.section-pencil-btn,
+.section-visibility-btn {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  min-width: 30px;
   padding: 0;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  line-height: 1;
-  background: var(--editor-surface-muted);
-  border-color: var(--editor-border);
+  border-radius: 999px;
+  border: 1px solid #bed3c5;
+  background: #eaf4ef;
+  color: #285647;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  transition: all 0.15s ease;
 }
 
-.section-pencil-btn:hover {
-  background: var(--editor-hover);
-  border-color: var(--editor-accent);
+.section-pencil-btn svg,
+.section-visibility-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.section-pencil-btn:hover,
+.section-visibility-btn:hover {
+  background: #dcece3;
+  border-color: #97b8a8;
+  box-shadow: 0 1px 4px rgba(19, 66, 49, 0.14);
 }
 
 .section-row-label {
   flex: 1;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 650;
   color: #123524;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .section-visibility-btn {
-  min-height: 28px;
-  min-width: 28px;
-  padding: 0;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  line-height: 1;
-  background: transparent;
-  border-color: transparent;
-  flex-shrink: 0;
+  margin-left: auto;
 }
 
-.section-visibility-btn:hover {
-  background: var(--editor-hover);
-  border-color: var(--editor-border);
+.section-manager-row.is-hidden .section-visibility-btn {
+  background: #eef2ef;
+  color: #7f9489;
+  border-color: #cfdbd3;
 }
 
 .section-select-btn {
