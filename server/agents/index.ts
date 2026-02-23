@@ -66,10 +66,10 @@ function createAgent(name: string, promptFile: string, artifactType: string, rol
 }
 
 const orderedAgents = [
-  createAgent("agent_1_jd_parser", "agent1.prompt.txt", "parsed_jd", "planner"),
-  createAgent("agent_2_experience_extractor", "agent2.prompt.txt", "parsed_experience", "extractor"),
-  createAgent("agent_3_tagger", "agent3.prompt.txt", "tagged_bullets", "extractor"),
-  createAgent("agent_4_resume_draft", "agent4.prompt.txt", "resume_draft", "writer"),
+  createAgent("agent_1_job_normalizer", "agent1.prompt.txt", "parsed_jd", "planner"),
+  createAgent("agent_2_job_analysis", "agent2.prompt.txt", "parsed_experience", "extractor"),
+  createAgent("agent_3_profile_parser", "agent3.prompt.txt", "tagged_bullets", "extractor"),
+  createAgent("agent_4_cv_composer", "agent4.prompt.txt", "resume_draft", "writer"),
   createAgent("agent_5_cover_letter", "agent5.prompt.txt", "cover_letter_draft", "writer"),
   createAgent("agent_6_assistant_qa", "agent6.prompt.txt", "assistant_qa", "verifier"),
 ] as const;
