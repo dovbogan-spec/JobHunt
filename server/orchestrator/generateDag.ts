@@ -1,9 +1,10 @@
 import { createEvent, getRun, updateRunStatus } from "../storage/runsRepo.js";
+import { extractAgent1ForAgent2 } from "./extractAgent1ForAgent2.js";
 
 type StepExecutionResult = {
   ok?: boolean;
   skipped?: boolean;
-  reason?: string;
+  reason?: string | { code: string; message: string; details?: unknown };
   error?: string;
 };
 
@@ -26,7 +27,26 @@ function isFallbackAvailable(artifacts: Array<{ type: string }>, type: string) {
 async function canLaunchAgent2(runId: string) {
   const snapshot = await getRun(runId);
   const experienceText = typeof snapshot.run?.experience_text === "string" ? snapshot.run.experience_text.trim() : "";
-  return experienceText.length > 0;
+  if (experienceText.length === 0) {
+    return {
+      ok: false as const,
+      reason: {
+        code: "missing_experience_text",
+        message: "experience_text is required before Agent 2.",
+      },
+    };
+  }
+
+  const parsedJdArtifact = snapshot.artifacts.find((artifact) => artifact.type === "parsed_jd")?.data;
+  const extraction = extractAgent1ForAgent2(parsedJdArtifact);
+  if (!extraction.ok) {
+    return {
+      ok: false as const,
+      reason: extraction.reason,
+    };
+  }
+
+  return { ok: true as const };
 }
 
 export async function executeGenerateDag(runId: string, executeStep: ExecuteStep) {
@@ -37,11 +57,18 @@ export async function executeGenerateDag(runId: string, executeStep: ExecuteStep
   const agent3Promise = executeStep(runId, 3);
   const agent2Promise = agent1Promise.then(async (agent1Result) => {
     if (!isSuccessful(agent1Result)) {
-      return { ok: false, skipped: true, reason: "Agent 1 did not succeed." };
+      return {
+        ok: false,
+        skipped: true,
+        reason: {
+          code: "agent1_failed",
+          message: "Agent 1 did not succeed.",
+        },
+      };
     }
-    const extractionAndValidationPassed = await canLaunchAgent2(runId);
-    if (!extractionAndValidationPassed) {
-      return { ok: false, skipped: true, reason: "Extraction/validation failed before Agent 2." };
+    const launchability = await canLaunchAgent2(runId);
+    if (!launchability.ok) {
+      return { ok: false, skipped: true, reason: launchability.reason };
     }
     return executeStep(runId, 2);
   });
