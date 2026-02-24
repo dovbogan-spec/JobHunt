@@ -372,49 +372,54 @@ textarea {
 
 .job-insight-icons {
   display: grid;
+  gap: 0.6rem;
 }
 
-.insight-icon-btn {
-  width: 50px;
-  min-height: 40px;
-  border-radius: var(--radius-button);
-  padding: 0 0.6rem;
-  font-weight: 700;
-  background: #fff;
-  overflow: hidden;
+.skill-chip {
   display: flex;
-  justify-content: flex-start;
   align-items: center;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-.insight-icon-btn:hover,
-.insight-icon-btn.active {
-  width: 136px;
-}
-
-.insight-pill-icon {
-  width: 28px;
-  height: 28px;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.62rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  border: 1px solid rgba(16, 24, 20, 0.14);
+  background: rgba(255, 255, 255, 0.84);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 600;
 }
 
-.insight-pill-label {
-  opacity: 0;
-  transform: translateX(-8px);
-  transition: all 0.2s ease;
+.skill-chip:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(16, 24, 20, 0.26);
 }
 
-.insight-icon-btn:hover .insight-pill-label,
-.insight-icon-btn.active .insight-pill-label {
-  opacity: 1;
-  transform: translateX(0);
+.skill-chip.active {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(16, 24, 20, 0.34);
+}
+
+.skill-chip__icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.05);
+  flex: 0 0 34px;
+}
+
+.skill-chip__label {
+  font-size: 0.875rem;
+  line-height: 1.2;
+  color: rgba(0, 0, 0, 0.8);
+  white-space: normal;
+  overflow: visible;
+  text-wrap: balance;
 }
 
 .job-insight-content ul {
@@ -424,6 +429,12 @@ textarea {
   overflow: auto;
   display: grid;
   gap: 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .job-insights-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .resume-preview.modern {
