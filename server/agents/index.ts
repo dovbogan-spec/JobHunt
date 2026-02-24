@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { getConfig } from "../config/edgeConfig.js";
-import { Agent1OutputSchema } from "../../shared/schemas/agents/index.js";
+import { Agent1OutputSchema, Agent4InputEnvelopeSchema, Agent4OutputSchema } from "../../shared/schemas/agents/index.js";
+import { loadCvFieldRegistry, validateCvFieldsPayload } from "../config/cvFieldRegistry.js";
 
 type AgentContext = {
   runId: string;
@@ -109,6 +110,49 @@ function createAgent(
   };
 }
 
+function createAgent4(): AgentDefinition {
+  const base = createAgent(
+    "agent_4_cv_composer",
+    "agent4.prompt.txt",
+    "cv_fields_payload",
+    "writer",
+    Agent4OutputSchema,
+  );
+
+  async function runAgent4(ctx: AgentContext): Promise<AgentResult> {
+      const registry = await loadCvFieldRegistry();
+      const envelope = Agent4InputEnvelopeSchema.parse({
+        ...ctx.inputs,
+        cv_field_registry_version: registry.version,
+      });
+
+      const cvFields: Record<string, unknown> = {};
+      for (const field of registry.fields) {
+        cvFields[field.field_id] = field.default_value;
+      }
+
+      const validation = validateCvFieldsPayload(cvFields, registry);
+      const normalized = Agent4OutputSchema.parse({
+        cv_fields: cvFields,
+        warnings: validation.warnings,
+        edit_notes: [`Using cv_field_registry_version=${envelope.cv_field_registry_version}`],
+      });
+
+    return {
+      ok: true,
+      artifactUpdates: [{ type: "cv_fields_payload", data: normalized }],
+      nextHints: ["Agent completed successfully"],
+      errors: [],
+    };
+  }
+
+  return {
+    ...base,
+    run: runAgent4,
+    repair: runAgent4,
+  };
+}
+
 const BaseAgentOutputSchema = z
   .object({
     label: z.string().min(1),
@@ -121,7 +165,7 @@ const orderedAgents = [
   createAgent("agent_1_job_normalizer", "agent1.prompt.txt", "parsed_jd", "planner", Agent1OutputSchema),
   createAgent("agent_2_job_analysis", "agent2.prompt.txt", "parsed_experience", "extractor", BaseAgentOutputSchema),
   createAgent("agent_3_profile_parser", "agent3.prompt.txt", "tagged_bullets", "extractor", BaseAgentOutputSchema),
-  createAgent("agent_4_cv_composer", "agent4.prompt.txt", "resume_draft", "writer", BaseAgentOutputSchema),
+  createAgent4(),
   createAgent("agent_5_cover_letter", "agent5.prompt.txt", "cover_letter_draft", "writer", BaseAgentOutputSchema),
   createAgent("agent_6_assistant_qa", "agent6.prompt.txt", "assistant_qa", "verifier", BaseAgentOutputSchema),
 ] as const;

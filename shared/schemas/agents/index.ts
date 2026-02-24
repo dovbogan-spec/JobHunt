@@ -91,5 +91,31 @@ export const Agent2InputSchema = z
   })
   .strict();
 
+export const CvFieldValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+]);
+
+export const Agent4OutputSchema = z
+  .object({
+    cv_fields: z.record(z.string().min(1), CvFieldValueSchema),
+    warnings: z.array(z.string()),
+    edit_notes: z.array(z.string()),
+  })
+  .strict();
+
+export const Agent4InputEnvelopeSchema = z
+  .object({
+    jd_text: z.string().optional(),
+    experience_text: z.string().optional(),
+    artifacts: z.array(z.object({ type: z.string().min(1), data: z.unknown() })).default([]),
+    cv_field_registry_version: z.string().min(1),
+  })
+  .strict();
+
 export type Agent1Output = z.infer<typeof Agent1OutputSchema>;
 export type Agent2Input = z.infer<typeof Agent2InputSchema>;
+export type Agent4Output = z.infer<typeof Agent4OutputSchema>;

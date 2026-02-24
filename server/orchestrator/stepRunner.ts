@@ -4,6 +4,9 @@ import { getAgentForStep, maxSteps } from "../agents/index.js";
 import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
 import { withRetry } from "./retry.js";
+import { loadCvFieldRegistry } from "../config/cvFieldRegistry.js";
+import { Agent4OutputSchema } from "../../shared/schemas/agents/index.js";
+import { adaptCvFieldsToLegacyResumeDraft } from "./cvFieldsAdapter.js";
 
 const RETRY_DEFAULTS = {
   maxAttempts: Number(process.env.ORCHESTRATOR_RETRY_MAX_ATTEMPTS || 3),
@@ -102,14 +105,21 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     return { ok: false, error: requiredInputError };
   }
 
+  const baseInputs: Record<string, unknown> = {
+    jd_text: snapshot.run?.jd_text,
+    experience_text: snapshot.run?.experience_text,
+    artifacts: snapshot.artifacts,
+  };
+
+  if (stepIndex === 4) {
+    const registry = await loadCvFieldRegistry();
+    baseInputs.cv_field_registry_version = registry.version;
+  }
+
   const executionContext = {
     runId,
     context: { run: snapshot.run, artifacts: snapshot.artifacts },
-    inputs: {
-      jd_text: snapshot.run?.jd_text,
-      experience_text: snapshot.run?.experience_text,
-      artifacts: snapshot.artifacts,
-    },
+    inputs: baseInputs,
   };
 
   const rawResult = await withRetry(
@@ -324,6 +334,16 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
   }
 
   const updatedArtifacts = result.artifactUpdates.map((artifact) => ({ type: artifact.type, data: artifact.data }));
+  if (stepIndex === 4) {
+    const cvFieldsArtifact = updatedArtifacts.find((artifact) => artifact.type === "cv_fields_payload");
+    const parsedCvFields = Agent4OutputSchema.safeParse(cvFieldsArtifact?.data);
+    if (parsedCvFields.success) {
+      updatedArtifacts.push({
+        type: "resume_draft",
+        data: adaptCvFieldsToLegacyResumeDraft(parsedCvFields.data),
+      });
+    }
+  }
   await upsertArtifacts(runId, updatedArtifacts);
   await saveStep({
     runId,
