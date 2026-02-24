@@ -1,13 +1,30 @@
 import { put } from "@vercel/blob";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+type StorageBackend = "blob" | "local";
+type ArtifactKind = "resume_upload" | "parsed_profile" | "agent_output" | "resume_pdf";
+
 type BlobPutResult = {
-  url: string;
+  artifactId: string;
   pathname: string;
   size?: number;
   contentType?: string;
 };
+
+type ResolvedArtifactPointer = {
+  backend: StorageBackend;
+  pathname: string;
+};
+
+const LOCAL_FALLBACK_FLAG = "ALLOW_LOCAL_BLOB_FALLBACK";
+const LOCAL_UPLOAD_ROOT = ".local_uploads";
+
+
+function isPreviewOrProduction() {
+  return process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+}
+
 
 function sanitizeFileName(fileName: string) {
   return fileName
@@ -24,21 +41,113 @@ function normalizeBody(body: Buffer | Uint8Array | ArrayBuffer) {
   return Buffer.from(body);
 }
 
-export function isBlobConfigured() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+function isExplicitLocalDevFallbackEnabled() {
+  return process.env.NODE_ENV === "development" && process.env[LOCAL_FALLBACK_FLAG] === "true";
+}
+
+function buildBlobConfigError() {
+  return `Blob storage is required in ${process.env.VERCEL_ENV || process.env.NODE_ENV || "this environment"}. ` +
+    "Set BLOB_READ_WRITE_TOKEN to enable private storage, or run local dev with NODE_ENV=development and ALLOW_LOCAL_BLOB_FALLBACK=true.";
+}
+
+if (isPreviewOrProduction() && !process.env.BLOB_READ_WRITE_TOKEN) {
+  throw new Error(buildBlobConfigError());
+}
+
+function resolveStorageBackend(): StorageBackend {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return "blob";
+  if (isExplicitLocalDevFallbackEnabled()) return "local";
+  throw new Error(buildBlobConfigError());
+}
+
+function encodeArtifactId(pointer: ResolvedArtifactPointer) {
+  return Buffer.from(`${pointer.backend}:${pointer.pathname}`, "utf8").toString("base64url");
+}
+
+export function decodeArtifactId(artifactId: string): ResolvedArtifactPointer {
+  const decoded = Buffer.from(artifactId, "base64url").toString("utf8");
+  const separator = decoded.indexOf(":");
+  if (separator < 1) {
+    throw new Error("Invalid artifact pointer.");
+  }
+
+  const backend = decoded.slice(0, separator);
+  const pathname = decoded.slice(separator + 1);
+  if ((backend !== "blob" && backend !== "local") || pathname.length === 0 || pathname.includes("..")) {
+    throw new Error("Invalid artifact pointer.");
+  }
+
+  return { backend, pathname } as ResolvedArtifactPointer;
 }
 
 async function putLocal(pathname: string, body: Buffer, contentType: string): Promise<BlobPutResult> {
-  const localRoot = path.join(process.cwd(), ".local_uploads");
+  const localRoot = path.join(process.cwd(), LOCAL_UPLOAD_ROOT);
   const fullPath = path.join(localRoot, pathname);
   await mkdir(path.dirname(fullPath), { recursive: true });
   await writeFile(fullPath, body);
   return {
-    url: `local://${pathname}`,
+    artifactId: encodeArtifactId({ backend: "local", pathname }),
     pathname,
     size: body.byteLength,
     contentType,
   };
+}
+
+async function putPrivateBlob(pathname: string, body: Buffer, contentType: string): Promise<BlobPutResult> {
+  const uploaded = await put(pathname, body, {
+    access: "private",
+    contentType,
+    addRandomSuffix: false,
+  });
+
+  return {
+    artifactId: encodeArtifactId({ backend: "blob", pathname: uploaded.pathname }),
+    pathname: uploaded.pathname,
+    size: body.byteLength,
+    contentType,
+  };
+}
+
+async function putArtifact(pathname: string, body: Buffer, contentType: string) {
+  const backend = resolveStorageBackend();
+  if (backend === "local") return putLocal(pathname, body, contentType);
+  return putPrivateBlob(pathname, body, contentType);
+}
+
+function assertSensitiveKind(kind: ArtifactKind) {
+  if (["resume_upload", "parsed_profile", "agent_output", "resume_pdf"].includes(kind)) return;
+  throw new Error(`Unsupported artifact kind: ${kind}`);
+}
+
+export async function readArtifactBytes(artifactId: string): Promise<{ body: Buffer; contentType: string | null }> {
+  const pointer = decodeArtifactId(artifactId);
+
+  if (pointer.backend === "local") {
+    if (!isExplicitLocalDevFallbackEnabled()) {
+      throw new Error("Local artifact access is disabled outside explicit local development mode.");
+    }
+    const fullPath = path.join(process.cwd(), LOCAL_UPLOAD_ROOT, pointer.pathname);
+    const body = await readFile(fullPath);
+    return { body, contentType: null };
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error(buildBlobConfigError());
+  }
+
+  const baseUrl = process.env.BLOB_PRIVATE_API_URL || "https://blob.vercel-storage.com";
+  const response = await fetch(`${baseUrl}/${pointer.pathname}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to read artifact (${response.status}).`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return { body: Buffer.from(arrayBuffer), contentType: response.headers.get("content-type") };
 }
 
 export async function putExperienceFile(
@@ -47,27 +156,11 @@ export async function putExperienceFile(
   body: Buffer | Uint8Array | ArrayBuffer,
   contentType: string,
 ): Promise<BlobPutResult> {
+  assertSensitiveKind("resume_upload");
   const stamp = Date.now();
   const safeFileName = sanitizeFileName(fileName) || "experience_upload";
   const pathname = `runs/${runId}/uploads/${stamp}-${safeFileName}`;
-  const normalizedBody = normalizeBody(body);
-
-  if (!isBlobConfigured()) {
-    return putLocal(pathname, normalizedBody, contentType);
-  }
-
-  const uploaded = await put(pathname, normalizedBody, {
-    access: "public",
-    contentType,
-    addRandomSuffix: false,
-  });
-
-  return {
-    url: uploaded.url,
-    pathname: uploaded.pathname,
-    size: normalizedBody.byteLength,
-    contentType,
-  };
+  return putArtifact(pathname, normalizeBody(body), contentType);
 }
 
 export async function putExportPdf(
@@ -76,24 +169,8 @@ export async function putExportPdf(
   body: Buffer | Uint8Array | ArrayBuffer,
   contentType: string,
 ): Promise<BlobPutResult> {
+  assertSensitiveKind("resume_pdf");
   const safeFileName = sanitizeFileName(fileName) || "resume_export.pdf";
   const pathname = `runs/${runId}/exports/${safeFileName}`;
-  const normalizedBody = normalizeBody(body);
-
-  if (!isBlobConfigured()) {
-    return putLocal(pathname, normalizedBody, contentType);
-  }
-
-  const uploaded = await put(pathname, normalizedBody, {
-    access: "public",
-    contentType,
-    addRandomSuffix: false,
-  });
-
-  return {
-    url: uploaded.url,
-    pathname: uploaded.pathname,
-    size: normalizedBody.byteLength,
-    contentType,
-  };
+  return putArtifact(pathname, normalizeBody(body), contentType);
 }

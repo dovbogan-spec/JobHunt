@@ -5,7 +5,7 @@ import { getIdempotencyKey, hashRequest, sendJson, readJson } from "../../_utils
 import { basicRateLimit } from "../../../server/orchestrator/rateLimit.js";
 import { startRun, executeStep } from "../../../server/orchestrator/stepRunner.js";
 import { getConfig } from "../../../server/config/edgeConfig.js";
-import { putExportPdf, putExperienceFile } from "../../../server/storage/blob.js";
+import { decodeArtifactId, putExportPdf, putExperienceFile, readArtifactBytes } from "../../../server/storage/blob.js";
 import {
   appendChat,
   completeIdempotencyKey,
@@ -165,7 +165,7 @@ export default async function handler(
 
       await saveExperienceUpload({
         runId,
-        fileUrl: uploaded.url,
+        fileUrl: uploaded.artifactId,
         filePathname: uploaded.pathname,
         experienceText,
       });
@@ -173,8 +173,7 @@ export default async function handler(
       return sendJson(res, 200, {
         ok: true,
         file: {
-          url: uploaded.url,
-          pathname: uploaded.pathname,
+          artifactId: uploaded.artifactId,
           contentType: uploaded.contentType ?? part.contentType,
           size: uploaded.size ?? part.data.byteLength,
         },
@@ -182,6 +181,27 @@ export default async function handler(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed";
+      return sendJson(res, 400, { ok: false, error: message });
+    }
+  }
+
+
+  if (route.startsWith("artifacts/")) {
+    if (req.method !== "GET") return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+
+    const artifactId = route.slice("artifacts/".length);
+    if (!artifactId) return sendJson(res, 400, { ok: false, error: "artifactId is required" });
+
+    try {
+      // Validate format before attempting read.
+      decodeArtifactId(artifactId);
+      const artifact = await readArtifactBytes(artifactId);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", artifact.contentType || "application/octet-stream");
+      res.setHeader("Cache-Control", "no-store");
+      return res.end(artifact.body);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Artifact read failed";
       return sendJson(res, 400, { ok: false, error: message });
     }
   }
@@ -208,7 +228,7 @@ export default async function handler(
           type: "resume_pdf",
           data: {
             fileName,
-            url: stored.url,
+            artifactId: stored.artifactId,
             pathname: stored.pathname,
             size: stored.size,
             storedAt: new Date().toISOString(),
