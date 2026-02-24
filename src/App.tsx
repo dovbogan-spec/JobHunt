@@ -114,6 +114,7 @@ type SortableSectionRowProps = {
   onOpenEditor: () => void;
   onEditLabel: () => void;
   onToggleVisibility: () => void;
+  onRequestDelete: () => void;
   onUpdateLabel: (label: string) => void;
   editingLabel: boolean;
   setEditingLabel: (value: boolean) => void;
@@ -128,6 +129,7 @@ function SortableSectionRow({
   onOpenEditor,
   onEditLabel,
   onToggleVisibility,
+  onRequestDelete,
   onUpdateLabel,
   editingLabel,
   setEditingLabel,
@@ -188,26 +190,42 @@ function SortableSectionRow({
           {section.label || "Untitled section"}
         </span>
       )}
-      <button
-        className="section-visibility-btn"
-        onClick={onToggleVisibility}
-        title={section.visible ? "Hide section" : "Show section"}
-        aria-label={section.visible ? `Hide ${section.label} section` : `Show ${section.label} section`}
-      >
-        {section.visible ? (
+      <div className="section-row-actions">
+        <button
+          className="section-visibility-btn"
+          onClick={onToggleVisibility}
+          title={section.visible ? "Hide section" : "Show section"}
+          aria-label={section.visible ? `Hide ${section.label} section` : `Show ${section.label} section`}
+        >
+          {section.visible ? (
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M1.8 12s3.7-6 10.2-6 10.2 6 10.2 6-3.7 6-10.2 6S1.8 12 1.8 12Z" />
+              <circle cx="12" cy="12" r="3.2" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3 3 21 21" />
+              <path d="M10.5 6.3A11.8 11.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a18.4 18.4 0 0 1-2.8 3.5" />
+              <path d="M6.4 8.1A18.6 18.6 0 0 0 1.8 12S5.5 18 12 18c1.8 0 3.3-.5 4.7-1.1" />
+              <path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3" />
+            </svg>
+          )}
+        </button>
+        <button
+          className="section-delete-btn"
+          onClick={onRequestDelete}
+          title={`Delete ${section.label}`}
+          aria-label={`Delete ${section.label} section`}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M1.8 12s3.7-6 10.2-6 10.2 6 10.2 6-3.7 6-10.2 6S1.8 12 1.8 12Z" />
-            <circle cx="12" cy="12" r="3.2" />
+            <path d="M4 7h16" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+            <path d="M6 7l1 12h10l1-12" />
+            <path d="M9 7V5h6v2" />
           </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M3 3 21 21" />
-            <path d="M10.5 6.3A11.8 11.8 0 0 1 12 6c6.5 0 10.2 6 10.2 6a18.4 18.4 0 0 1-2.8 3.5" />
-            <path d="M6.4 8.1A18.6 18.6 0 0 0 1.8 12S5.5 18 12 18c1.8 0 3.3-.5 4.7-1.1" />
-            <path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3" />
-          </svg>
-        )}
-      </button>
+        </button>
+      </div>
     </div>
   );
 }
@@ -725,6 +743,7 @@ function App() {
     (initialDraftSnapshot?.customSectionContents ?? {}) as Record<string, CustomSectionField[]>,
   );
   const [addSectionModalOpen, setAddSectionModalOpen] = useState(false);
+  const [pendingDeleteSection, setPendingDeleteSection] = useState<ResumeSection | null>(null);
   const [sectionCreationMode, setSectionCreationMode] = useState<"template" | "custom">("template");
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_SECTION_TEMPLATES[0].id);
   const [customSectionTitleDraft, setCustomSectionTitleDraft] = useState("New Section");
@@ -790,6 +809,7 @@ function App() {
   }, [editorDraft.languages, pendingLanguageFocusId]);
   const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const previewRef = useRef<HTMLElement | null>(null);
+  const deleteCancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const richTextEditorRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const previewResume = editMode ? editorDraft : resume;
@@ -844,6 +864,17 @@ function App() {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
   useEffect(() => {
+    if (!pendingDeleteSection) return;
+    deleteCancelButtonRef.current?.focus();
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPendingDeleteSection(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pendingDeleteSection]);
+  useEffect(() => {
     fetch("/api/health")
       .then((response) => response.json())
       .then((data: { features?: { byokEnabled?: boolean } }) => {
@@ -872,15 +903,19 @@ function App() {
     };
   }
 
-  function persistDraftSnapshot(nextResume: ResumeData, nextEditMode: boolean) {
+  function persistDraftSnapshot(
+    nextResume: ResumeData,
+    nextEditMode: boolean,
+    overrides?: Partial<Pick<ResumeDraftSnapshot, "sections" | "activeSectionId" | "customSectionContents">>,
+  ) {
     const snapshot: ResumeDraftSnapshot = {
       resume: nextResume,
       editorDraft,
       personalDetailFields,
       skillEntries,
-      customSectionContents,
-      sections,
-      activeSectionId,
+      customSectionContents: overrides?.customSectionContents ?? customSectionContents,
+      sections: overrides?.sections ?? sections,
+      activeSectionId: overrides?.activeSectionId ?? activeSectionId,
       editMode: nextEditMode,
     };
     localStorage.setItem(RESUME_DRAFT_STORAGE_KEY, JSON.stringify(snapshot));
@@ -1684,6 +1719,40 @@ function App() {
     openSectionEditor(id);
     setEditingLabelId(id);
   }
+  function requestDeleteSection(section: ResumeSection) {
+    setPendingDeleteSection(section);
+  }
+  function confirmDeleteSection() {
+    if (!pendingDeleteSection) return;
+    const sectionId = pendingDeleteSection.id;
+    const nextSections = sections.filter((section) => section.id !== sectionId);
+    const nextCustomSectionContents = Object.fromEntries(
+      Object.entries(customSectionContents).filter(([key]) => key !== sectionId),
+    );
+    const nextActiveSectionId = activeSectionId === sectionId
+      ? nextSections.find((section) => section.visible)?.id ?? nextSections[0]?.id ?? ""
+      : activeSectionId;
+    const nextEditMode = activeSectionId === sectionId ? false : editMode;
+
+    setSections(nextSections);
+    setCustomSectionContents(nextCustomSectionContents);
+    if (activeSectionId === sectionId) {
+      if (nextActiveSectionId) {
+        setActiveSectionId(nextActiveSectionId);
+      }
+      setEditMode(false);
+      setEditingLabelId(null);
+    }
+    persistDraftSnapshot(buildCanonicalResume(), nextEditMode, {
+      sections: nextSections,
+      activeSectionId: nextActiveSectionId,
+      customSectionContents: nextCustomSectionContents,
+    });
+    setPendingDeleteSection(null);
+  }
+  function cancelDeleteSection() {
+    setPendingDeleteSection(null);
+  }
   function openSectionEditor(id: string) {
     if (!editMode) {
       const migrated = migrateResumeData(resume);
@@ -1774,18 +1843,6 @@ function App() {
     });
     setEditMode(false);
   }
-  function cancelEditingResume() {
-    setEditorDraft(migrateResumeData(resume));
-    setEditMode(false);
-    persistDraftSnapshot(resume, false);
-  }
-  function updateActiveSectionVisibility(visible: boolean) {
-    setSections((prev) =>
-      prev.map((section) =>
-        section.id === activeSectionId ? { ...section, visible } : section,
-      ),
-    );
-  }
 
   useEffect(() => {
     if (!editMode) return;
@@ -1796,44 +1853,6 @@ function App() {
       setActiveSectionId(firstVisibleSection.id);
     }
   }, [activeSectionId, editMode, sections]);
-  function clearActiveSectionContent() {
-    if (activeSectionId === "header") {
-      setPersonalDetailFields({
-        fullName: "",
-        professionalTitle: "",
-        email: "",
-        phone: "",
-        location: "",
-        linkedIn: "",
-        portfolio: "",
-      });
-      return;
-    }
-    setEditorDraft((prev) => {
-      switch (activeSectionId) {
-        case "profile":
-          return { ...prev, profile: "" };
-        case "experience":
-          return { ...prev, experience: [] };
-        case "education":
-          return { ...prev, education: [] };
-        case "skills":
-          return { ...prev, skills: [] };
-        case "interests":
-          return { ...prev, interests: [] };
-        case "languages":
-          return { ...prev, languages: [] };
-        default:
-          if (activeSectionId.startsWith("custom-")) {
-            setCustomSectionContents((prev) => ({
-              ...prev,
-              [activeSectionId]: [makeCustomSectionField("textParagraph")],
-            }));
-          }
-          return prev;
-      }
-    });
-  }
   function applyRichCommand(command: "bold" | "italic" | "underline" | "insertUnorderedList" | "createLink" | "justifyLeft" | "justifyCenter" | "justifyRight") {
     if (!richTextEditorRef.current) return;
     richTextEditorRef.current.focus();
@@ -2265,6 +2284,7 @@ function App() {
 
                 <aside className="section-manager-panel edit-box">
                     <div className="section-manager-header">
+                      <span aria-hidden="true" />
                       <button
                         className="add-section-btn"
                         onClick={openAddSectionModal}
@@ -2273,7 +2293,6 @@ function App() {
                       >
                         +
                       </button>
-                      <h4>Sections</h4>
                     </div>
                     {addSectionModalOpen && (
                       <div className="add-section-modal">
@@ -2324,6 +2343,25 @@ function App() {
                         </div>
                       </div>
                     )}
+                    {pendingDeleteSection && (
+                      <div className="section-delete-modal-backdrop" role="presentation" onClick={cancelDeleteSection}>
+                        <div
+                          className="section-delete-modal"
+                          role="alertdialog"
+                          aria-modal="true"
+                          aria-labelledby="delete-section-title"
+                          aria-describedby="delete-section-description"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <h5 id="delete-section-title">Delete section?</h5>
+                          <p id="delete-section-description">Are you sure you want to delete this section? This can’t be undone.</p>
+                          <div className="section-delete-modal-actions">
+                            <button className="destructive" onClick={confirmDeleteSection}>Delete</button>
+                            <button ref={deleteCancelButtonRef} onClick={cancelDeleteSection}>Cancel</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <p className="sr-only" aria-live="polite">{reorderLiveMessage}</p>
                     <DndContext
                       sensors={sectionDragSensors}
@@ -2357,6 +2395,7 @@ function App() {
                                 onOpenEditor={() => openSectionEditor(section.id)}
                                 onEditLabel={() => setEditingLabelId(section.id)}
                                 onToggleVisibility={() => toggleSection(section.id)}
+                                onRequestDelete={() => requestDeleteSection(section)}
                                 onUpdateLabel={(label) => updateSectionLabel(section.id, label)}
                                 editingLabel={editingLabelId === section.id}
                                 setEditingLabel={(value) => {
@@ -2397,42 +2436,16 @@ function App() {
                         commitEditorChanges(activeSectionId);
                       }}
                     >
-                      <header className="focused-editor-header">
-                        <div>
-                          <p className="focused-editor-kicker">Editing section</p>
-                          {editingLabelId === activeSectionId ? (
-                            <input
-                              className="section-label-edit-input"
-                              value={activeSection.label}
-                              autoFocus
-                              onChange={(e) => updateSectionLabel(activeSectionId, e.target.value)}
-                              onBlur={() => setEditingLabelId(null)}
-                              onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
-                            />
-                          ) : (
-                            <h4>
-                              {activeSection.label}
-                              {savedSectionId === activeSectionId && (
-                                <span className="section-save-confirmation" role="status" aria-live="polite">
-                                  ✓ Saved
-                                </span>
-                              )}
-                              <button
-                                className="section-label-pencil"
-                                onClick={() => setEditingLabelId(activeSectionId)}
-                                title="Rename section"
-                                aria-label="Rename section"
-                              >
-                                ✏️
-                              </button>
-                            </h4>
-                          )}
-                        </div>
-                        <div className="focused-editor-actions">
-                          <button onClick={() => updateActiveSectionVisibility(false)}>Hide</button>
-                          <button onClick={clearActiveSectionContent}>Clear</button>
-                        </div>
-                      </header>
+                      {editingLabelId === activeSectionId && (
+                        <input
+                          className="section-label-edit-input"
+                          value={activeSection.label}
+                          autoFocus
+                          onChange={(e) => updateSectionLabel(activeSectionId, e.target.value)}
+                          onBlur={() => setEditingLabelId(null)}
+                          onKeyDown={(e) => e.key === "Enter" && setEditingLabelId(null)}
+                        />
+                      )}
 
                       {/* Personal Details */}
                       {activeSectionId === "header" && (
@@ -2828,7 +2841,6 @@ function App() {
                           </span>
                         )}
                         <button className="primary" onClick={saveEditingResume}>Done</button>
-                        <button onClick={cancelEditingResume}>Cancel</button>
                       </footer>
                     </section>
                   )}
