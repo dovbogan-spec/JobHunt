@@ -1,0 +1,93 @@
+{
+  "version": "2026-02-01",
+  "fields": [
+    {
+      "field_id": "personal.full_name",
+      "label": "Full Name",
+      "type": "string",
+      "max_length": 120,
+      "ui_section": "personal-details",
+      "required": true,
+      "default_value": "",
+      "validation": { "pattern": "^.{0,120}$" },
+      "privacy_class": "pii"
+    },
+    {
+      "field_id": "personal.professional_title",
+      "label": "Professional Title",
+      "type": "string",
+      "max_length": 120,
+      "ui_section": "personal-details",
+      "required": false,
+      "default_value": "",
+      "validation": { "pattern": "^.{0,120}$" },
+      "privacy_class": "internal"
+    },
+    {
+      "field_id": "personal.email",
+      "label": "Email",
+      "type": "string",
+      "max_length": 160,
+      "ui_section": "personal-details",
+      "required": false,
+      "default_value": "",
+      "validation": { "format": "email" },
+      "privacy_class": "pii"
+    },
+    {
+      "field_id": "profile.summary",
+      "label": "Profile Summary",
+      "type": "string",
+      "max_length": 2000,
+      "ui_section": "profile",
+      "required": false,
+      "default_value": "",
+      "validation": { "pattern": "^[\\s\\S]{0,2000}$" },
+      "privacy_class": "internal"
+    },
+    {
+      "field_id": "experience.items",
+      "label": "Experience Items",
+      "type": "array",
+      "max_length": 100,
+      "ui_section": "professional-experience",
+      "required": false,
+      "default_value": [],
+      "validation": { "item_type": "object" },
+      "privacy_class": "internal"
+    },
+    {
+      "field_id": "skills.items",
+      "label": "Skills",
+      "type": "array",
+      "max_length": 100,
+      "ui_section": "skills",
+      "required": false,
+      "default_value": [],
+      "validation": { "item_type": "object" },
+      "privacy_class": "internal"
+    },
+    {
+      "field_id": "education.items",
+      "label": "Education",
+      "type": "array",
+      "max_length": 50,
+      "ui_section": "education",
+      "required": false,
+      "default_value": [],
+      "validation": { "item_type": "object" },
+      "privacy_class": "internal"
+    },
+    {
+      "field_id": "languages.items",
+      "label": "Languages",
+      "type": "array",
+      "max_length": 30,
+      "ui_section": "languages",
+      "required": false,
+      "default_value": [],
+      "validation": { "item_type": "object" },
+      "privacy_class": "internal"
+    }
+  ]
+}
