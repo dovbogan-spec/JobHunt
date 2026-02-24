@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from "uuid";
 import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
 import { MODEL_CATALOG, getDefaultModel, getModelsForProvider, type LlmProvider as CatalogLlmProvider } from "./config/modelDefinitions";
 import { PreviewModal } from "./components/PreviewModal";
+import { SettingsMenu } from "./components/SettingsMenu";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -2233,6 +2234,7 @@ function App() {
           >
             {chatOpen ? "🧩 Hide Chat" : "💬 Show Chat"}
           </button>
+          <SettingsMenu />
         </div>
       </header>
       <div className="app-layout">
