@@ -38,6 +38,37 @@ create table if not exists run_steps (
   unique (run_id, step_index)
 );
 
+alter table run_steps add column if not exists agent_id text;
+alter table run_steps add column if not exists schema_version int not null default 1;
+alter table run_steps add column if not exists retry_count int not null default 0;
+alter table run_steps add column if not exists duration_ms bigint;
+alter table run_steps add column if not exists input_schema_version int;
+alter table run_steps add column if not exists output_schema_version int;
+alter table run_steps add column if not exists error_json jsonb;
+alter table run_steps add column if not exists output_pointer text;
+alter table run_steps add column if not exists artifacts_json jsonb not null default '[]'::jsonb;
+
+update run_steps
+set agent_id = coalesce(agent_id, agent_name),
+    input_schema_version = coalesce(input_schema_version, schema_version),
+    output_schema_version = coalesce(output_schema_version, schema_version),
+    error_json = coalesce(error_json, case when error is not null then jsonb_build_object('message', error) else null end),
+    duration_ms = coalesce(duration_ms, case when started_at is not null and finished_at is not null then greatest((extract(epoch from (finished_at - started_at)) * 1000)::bigint, 0) else null end)
+where agent_id is null
+   or input_schema_version is null
+   or output_schema_version is null
+   or (error is not null and error_json is null)
+   or (started_at is not null and finished_at is not null and duration_ms is null);
+
+do $$
+begin
+  alter table run_steps drop constraint if exists run_steps_status_check;
+  alter table run_steps add constraint run_steps_status_check
+    check (status in ('pending','running','succeeded','failed','skipped','queued'));
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists run_artifacts (
   id uuid primary key default gen_random_uuid(),
   run_id uuid not null references runs(id) on delete cascade,

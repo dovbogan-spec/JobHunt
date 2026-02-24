@@ -13,7 +13,6 @@ function missingRequiredInputs(stepIndex: number, run: Record<string, unknown> |
   return null;
 }
 
-
 export async function executeStep(runId: string, stepIndex: number, force = false) {
   const agent = getAgentForStep(stepIndex);
   if (!agent) {
@@ -24,33 +23,52 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
   const existing = snapshot.steps.find((step: { step_index: number; status: string }) => step.step_index === stepIndex);
 
   if (!force && existing?.status === "succeeded") {
-    return { skipped: true, reason: "Step already succeeded" };
-  }
-
-  const requiredInputError = missingRequiredInputs(stepIndex, snapshot.run as Record<string, unknown> | null);
-  if (requiredInputError) {
     await saveStep({
       runId,
       stepIndex,
-      agentName: agent.name,
-      status: "failed",
+      agentId: agent.name,
+      status: "running",
       inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
-      outputJson: {},
-      error: requiredInputError,
+      artifactsJson: snapshot.artifacts,
     });
-    await updateRunStatus(runId, "failed");
-    await createEvent(runId, "run_failed", { stepIndex, error: requiredInputError });
-    return { ok: false, error: requiredInputError };
+    await saveStep({
+      runId,
+      stepIndex,
+      agentId: agent.name,
+      status: "skipped",
+      inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+      outputJson: { skipped: true, reason: "Step already succeeded" },
+      artifactsJson: snapshot.artifacts,
+    });
+    return { skipped: true, reason: "Step already succeeded" };
   }
 
   await createEvent(runId, "step_started", { stepIndex, agent: agent.name });
   await saveStep({
     runId,
     stepIndex,
-    agentName: agent.name,
+    agentId: agent.name,
     status: "running",
     inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+    artifactsJson: snapshot.artifacts,
   });
+
+  const requiredInputError = missingRequiredInputs(stepIndex, snapshot.run as Record<string, unknown> | null);
+  if (requiredInputError) {
+    await saveStep({
+      runId,
+      stepIndex,
+      agentId: agent.name,
+      status: "failed",
+      inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+      outputJson: {},
+      error: requiredInputError,
+      artifactsJson: snapshot.artifacts,
+    });
+    await updateRunStatus(runId, "failed");
+    await createEvent(runId, "run_failed", { stepIndex, error: requiredInputError });
+    return { ok: false, error: requiredInputError };
+  }
 
   const rawResult = await agent.run({
     runId,
@@ -70,11 +88,12 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     await saveStep({
       runId,
       stepIndex,
-      agentName: agent.name,
+      agentId: agent.name,
       status: "failed",
       inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
       outputJson: rawResult,
       error: `Agent output schema mismatch: ${schemaError}`,
+      artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
     return { ok: false, error: `Agent output schema mismatch: ${schemaError}` };
@@ -86,28 +105,28 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     await saveStep({
       runId,
       stepIndex,
-      agentName: agent.name,
+      agentId: agent.name,
       status: "failed",
       inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
       outputJson: result,
       error: errorText,
+      artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
     await createEvent(runId, "run_failed", { stepIndex, error: errorText });
     return { ok: false };
   }
 
-  await upsertArtifacts(
-    runId,
-    result.artifactUpdates.map((artifact) => ({ type: artifact.type, data: artifact.data })),
-  );
+  const updatedArtifacts = result.artifactUpdates.map((artifact) => ({ type: artifact.type, data: artifact.data }));
+  await upsertArtifacts(runId, updatedArtifacts);
   await saveStep({
     runId,
     stepIndex,
-    agentName: agent.name,
+    agentId: agent.name,
     status: "succeeded",
     inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
     outputJson: result,
+    artifactsJson: updatedArtifacts,
   });
   await createEvent(runId, "step_completed", { stepIndex, agent: agent.name });
 
