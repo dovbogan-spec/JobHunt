@@ -1,12 +1,21 @@
 import { getConfig } from "../config/edgeConfig.js";
 import { executeGenerateDag } from "./generateDag.js";
 import { getAgentForStep, maxSteps } from "../agents/index.js";
-import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
+import {
+  createEvent,
+  getRun,
+  saveStep,
+  updateRunProgress,
+  updateRunStatus,
+  upsertArtifacts,
+  upsertUserProfileSnapshot,
+} from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
 import { withRetry } from "./retry.js";
 import { loadCvFieldRegistry } from "../config/cvFieldRegistry.js";
 import { Agent4OutputSchema } from "../../shared/schemas/agents/index.js";
 import { adaptCvFieldsToLegacyResumeDraft } from "./cvFieldsAdapter.js";
+import { writeRunSnapshotParquet } from "../storage/parquet.js";
 
 const RETRY_DEFAULTS = {
   maxAttempts: Number(process.env.ORCHESTRATOR_RETRY_MAX_ATTEMPTS || 3),
@@ -48,6 +57,53 @@ function missingRequiredInputs(stepIndex: number, run: Record<string, unknown> |
   return null;
 }
 
+async function persistTerminalSnapshot(runId: string) {
+  try {
+    const snapshot = await getRun(runId);
+    if (!snapshot.run) return;
+
+    const profile = {
+      candidate_name: snapshot.run.candidate_name,
+      jd_text: snapshot.run.jd_text,
+      experience_text: snapshot.run.experience_text,
+      selected_template: snapshot.run.selected_template,
+    };
+    const output = {
+      status: snapshot.run.status,
+      current_step: snapshot.run.current_step,
+      error_summary: snapshot.run.error_summary,
+      steps: [...snapshot.steps]
+        .sort((a, b) => a.step_index - b.step_index)
+        .map((step) => ({
+          step_index: step.step_index,
+          agent_id: step.agent_id,
+          status: step.status,
+          output_json: step.output_json,
+          error_json: step.error_json,
+        })),
+      artifacts: [...snapshot.artifacts].sort((a, b) => a.type.localeCompare(b.type)),
+    };
+
+    const snapshotWrite = await writeRunSnapshotParquet({
+      userId: snapshot.run.user_id || "local",
+      runId,
+      snapshotVersion: 1,
+      profile,
+      output,
+    });
+
+    await upsertUserProfileSnapshot({
+      userId: snapshot.run.user_id || "local",
+      runId,
+      snapshotVersion: 1,
+      parquetBlobPath: snapshotWrite.parquetBlobPath,
+      profileHash: snapshotWrite.profileHash,
+    });
+  } catch (error) {
+    console.warn(`Failed to persist terminal snapshot for run ${runId}:`, error);
+  }
+}
+
 export async function executeStep(runId: string, stepIndex: number, force = false) {
   const agent = getAgentForStep(stepIndex);
   if (!agent) {
@@ -79,6 +135,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
   }
 
   await createEvent(runId, "step_started", { stepIndex, agent: agent.name });
+  await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: null });
   await saveStep({
     runId,
     stepIndex,
@@ -101,7 +158,9 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
+    await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: requiredInputError });
     await createEvent(runId, "run_failed", { stepIndex, error: requiredInputError });
+    await persistTerminalSnapshot(runId);
     return { ok: false, error: requiredInputError };
   }
 
@@ -163,7 +222,9 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
+    await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: hardFailure.message });
     await createEvent(runId, "validation_gate_failed", { stepIndex, gate: "stage_1", error: hardFailure });
+    await persistTerminalSnapshot(runId);
     return { ok: false, error: hardFailure.message };
   }
   let result = parsedResult.data;
@@ -218,12 +279,14 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
           artifactsJson: snapshot.artifacts,
         });
         await updateRunStatus(runId, "failed");
+        await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: hardFailure.message });
         await createEvent(runId, "validation_gate_failed", {
           stepIndex,
           gate: "stage_1",
           attemptedRepair: true,
           error: hardFailure,
         });
+        await persistTerminalSnapshot(runId);
         return { ok: false, error: hardFailure.message };
       }
     } else {
@@ -248,12 +311,14 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
         artifactsJson: snapshot.artifacts,
       });
       await updateRunStatus(runId, "failed");
+      await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: hardFailure.message });
       await createEvent(runId, "validation_gate_failed", {
         stepIndex,
         gate: "stage_1",
         attemptedRepair: true,
         error: hardFailure,
       });
+      await persistTerminalSnapshot(runId);
       return { ok: false, error: hardFailure.message };
     }
   }
@@ -276,7 +341,9 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
+    await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: errorText });
     await createEvent(runId, "run_failed", { stepIndex, error: errorText });
+    await persistTerminalSnapshot(runId);
     return { ok: false };
   }
 
@@ -358,7 +425,9 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
 
   if (stepIndex >= maxSteps()) {
     await updateRunStatus(runId, "succeeded");
+    await updateRunProgress(runId, { currentStep: stepIndex, errorSummary: null });
     await createEvent(runId, "run_completed", { runId });
+    await persistTerminalSnapshot(runId);
     return { ok: true, finished: true };
   }
 

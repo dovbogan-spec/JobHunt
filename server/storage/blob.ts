@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type StorageBackend = "blob" | "local";
-type ArtifactKind = "resume_upload" | "parsed_profile" | "agent_output" | "resume_pdf";
+type ArtifactKind = "resume_upload" | "parsed_profile" | "agent_output" | "resume_pdf" | "profile_snapshot";
 
 type BlobPutResult = {
   artifactId: string;
@@ -115,8 +115,17 @@ async function putArtifact(pathname: string, body: Buffer, contentType: string) 
 }
 
 function assertSensitiveKind(kind: ArtifactKind) {
-  if (["resume_upload", "parsed_profile", "agent_output", "resume_pdf"].includes(kind)) return;
+  if (["resume_upload", "parsed_profile", "agent_output", "resume_pdf", "profile_snapshot"].includes(kind)) return;
   throw new Error(`Unsupported artifact kind: ${kind}`);
+}
+
+function sanitizePathSegment(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 120);
 }
 
 export async function readArtifactBytes(artifactId: string): Promise<{ body: Buffer; contentType: string | null }> {
@@ -173,4 +182,16 @@ export async function putExportPdf(
   const safeFileName = sanitizeFileName(fileName) || "resume_export.pdf";
   const pathname = `runs/${runId}/exports/${safeFileName}`;
   return putArtifact(pathname, normalizeBody(body), contentType);
+}
+
+export async function putRunSnapshotParquet(
+  userId: string,
+  runId: string,
+  snapshotVersion: number,
+  body: Buffer | Uint8Array | ArrayBuffer,
+): Promise<BlobPutResult> {
+  assertSensitiveKind("profile_snapshot");
+  const safeUserId = sanitizePathSegment(userId) || "local";
+  const pathname = `runs/${runId}/snapshots/${safeUserId}-${runId}-v${snapshotVersion}.parquet`;
+  return putArtifact(pathname, normalizeBody(body), "application/vnd.apache.parquet");
 }
