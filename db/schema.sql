@@ -15,14 +15,23 @@ create table if not exists runs (
   jd_source_type text not null check (jd_source_type in ('paste','url')),
   jd_source_url text,
   jd_text text not null,
+  jd_text_hash text,
   experience_file_id text,
   experience_file_url text,
   experience_file_pathname text,
   experience_text text,
+  resume_hash text,
+  current_step int,
+  error_summary text,
   selected_template text not null default 'modern_1',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table runs add column if not exists jd_text_hash text;
+alter table runs add column if not exists resume_hash text;
+alter table runs add column if not exists current_step int;
+alter table runs add column if not exists error_summary text;
 
 create table if not exists run_steps (
   id uuid primary key default gen_random_uuid(),
@@ -107,4 +116,16 @@ create table if not exists run_idempotency_keys (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (scope, idempotency_key)
+);
+
+create table if not exists user_profile_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  run_id uuid not null references runs(id) on delete cascade,
+  snapshot_version int not null default 1,
+  parquet_blob_path text not null,
+  profile_hash text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, run_id, snapshot_version)
 );

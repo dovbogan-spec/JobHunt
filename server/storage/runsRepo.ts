@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { getDbPool } from "./db.js";
+import { sha256Hash } from "./hash.js";
 
 export async function createRun(input: Record<string, unknown>) {
   const pool = getDbPool();
   const id = randomUUID();
   await pool.query(
-    `insert into runs (id, user_id, title, status, candidate_name, jd_source_type, jd_source_url, jd_text, selected_template)
-     values ($1,$2,$3,'created',$4,$5,$6,$7,$8)`,
+    `insert into runs (id, user_id, title, status, candidate_name, jd_source_type, jd_source_url, jd_text, jd_text_hash, selected_template, current_step)
+     values ($1,$2,$3,'created',$4,$5,$6,$7,$8,$9,0)`,
     [
       id,
       (input.userId as string) || "local",
@@ -15,6 +16,7 @@ export async function createRun(input: Record<string, unknown>) {
       (input.jdSourceType as string) || "paste",
       (input.jdSourceUrl as string) || null,
       (input.jdText as string) || "",
+      sha256Hash((input.jdText as string) || ""),
       (input.selectedTemplate as string) || "modern_1",
     ],
   );
@@ -190,6 +192,18 @@ export async function updateRunStatus(runId: string, status: string) {
   await pool.query(`update runs set status = $2, updated_at = now() where id = $1`, [runId, status]);
 }
 
+export async function updateRunProgress(runId: string, params: { currentStep?: number; errorSummary?: string | null }) {
+  const pool = getDbPool();
+  await pool.query(
+    `update runs
+     set current_step = coalesce($2, current_step),
+         error_summary = $3,
+         updated_at = now()
+     where id = $1`,
+    [runId, params.currentStep ?? null, params.errorSummary ?? null],
+  );
+}
+
 export async function appendChat(runId: string, role: "user" | "assistant" | "system", content: string) {
   const pool = getDbPool();
   await pool.query(`insert into chat_messages (run_id, role, content) values ($1,$2,$3)`, [
@@ -211,9 +225,29 @@ export async function saveExperienceUpload(params: {
       set experience_file_url = $2,
           experience_file_pathname = $3,
           experience_text = $4,
+          resume_hash = $5,
           updated_at = now()
       where id = $1`,
-    [params.runId, params.fileUrl, params.filePathname, params.experienceText],
+    [params.runId, params.fileUrl, params.filePathname, params.experienceText, sha256Hash(params.experienceText)],
+  );
+}
+
+export async function upsertUserProfileSnapshot(params: {
+  userId: string;
+  runId: string;
+  snapshotVersion: number;
+  parquetBlobPath: string;
+  profileHash: string;
+}) {
+  const pool = getDbPool();
+  await pool.query(
+    `insert into user_profile_snapshots (user_id, run_id, snapshot_version, parquet_blob_path, profile_hash)
+     values ($1,$2,$3,$4,$5)
+     on conflict (user_id, run_id, snapshot_version)
+     do update set parquet_blob_path = $4,
+                   profile_hash = $5,
+                   updated_at = now()`,
+    [params.userId, params.runId, params.snapshotVersion, params.parquetBlobPath, params.profileHash],
   );
 }
 
