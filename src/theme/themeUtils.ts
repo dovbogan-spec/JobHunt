@@ -6,6 +6,11 @@ export type ThemeTokens = {
   ring: string;
   borderAccent: string;
   bgAccent: string;
+  bgPage: string;
+  bgPanel: string;
+  border: string;
+  text: string;
+  muted: string;
 };
 
 type Hsl = { h: number; s: number; l: number };
@@ -91,6 +96,11 @@ function adjustLightness(hex: string, delta: number): string {
   return rgbToHex(r, g, b);
 }
 
+function hslToHex(h: number, s: number, l: number): string {
+  const { r, g, b } = hslToRgb({ h, s, l });
+  return rgbToHex(r, g, b);
+}
+
 export function withAlpha(hex: string, alpha: number): string {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${clamp(alpha, 0, 1)})`;
@@ -111,6 +121,10 @@ export function getReadableTextColor(backgroundHex: string): string {
 }
 
 export function deriveThemeTokens(baseHex: string): ThemeTokens {
+  const hsl = rgbToHsl(hexToRgb(baseHex));
+  const h = hsl.h;
+  const s = hsl.s;
+
   return {
     primary: baseHex,
     primaryContrast: getReadableTextColor(baseHex),
@@ -119,5 +133,10 @@ export function deriveThemeTokens(baseHex: string): ThemeTokens {
     ring: withAlpha(baseHex, 0.35),
     borderAccent: withAlpha(baseHex, 0.3),
     bgAccent: withAlpha(baseHex, 0.12),
+    bgPage: hslToHex(h, clamp(s, 0, 65), 96),
+    bgPanel: hslToHex(h, clamp(s * 0.35, 0, 20), 97),
+    border: hslToHex(h, clamp(s * 0.30, 0, 20), 83),
+    text: hslToHex(h, clamp(s * 0.50, 0, 30), 15),
+    muted: hslToHex(h, clamp(s * 0.25, 0, 20), 35),
   };
 }

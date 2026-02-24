@@ -28,6 +28,12 @@ function applyThemeToRoot(theme: ThemePaletteEntry): void {
   rootStyle.setProperty("--border-accent", tokens.borderAccent);
   rootStyle.setProperty("--bg-accent", tokens.bgAccent);
 
+  rootStyle.setProperty("--bg-page", tokens.bgPage);
+  rootStyle.setProperty("--bg-panel", tokens.bgPanel);
+  rootStyle.setProperty("--border", tokens.border);
+  rootStyle.setProperty("--text", tokens.text);
+  rootStyle.setProperty("--muted", tokens.muted);
+
   rootStyle.setProperty("--accent", tokens.primary);
   rootStyle.setProperty("--accent-strong", tokens.primaryActive);
   rootStyle.setProperty("--focus-ring", tokens.ring);
