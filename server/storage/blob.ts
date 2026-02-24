@@ -1,5 +1,5 @@
-import { put } from "@vercel/blob";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { del, put } from "@vercel/blob";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 type StorageBackend = "blob" | "local";
@@ -157,6 +157,37 @@ export async function readArtifactBytes(artifactId: string): Promise<{ body: Buf
 
   const arrayBuffer = await response.arrayBuffer();
   return { body: Buffer.from(arrayBuffer), contentType: response.headers.get("content-type") };
+}
+
+async function deleteLocal(pathname: string) {
+  const fullPath = path.join(process.cwd(), LOCAL_UPLOAD_ROOT, pathname);
+  await rm(fullPath, { force: true });
+}
+
+async function deletePrivateBlob(pathname: string) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error(buildBlobConfigError());
+  }
+  await del(pathname, {
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  });
+}
+
+export async function deleteArtifactPath(pathname: string, backend?: StorageBackend) {
+  const targetBackend = backend ?? resolveStorageBackend();
+  if (targetBackend === "local") {
+    if (!isExplicitLocalDevFallbackEnabled()) {
+      throw new Error("Local artifact deletion is disabled outside explicit local development mode.");
+    }
+    await deleteLocal(pathname);
+    return;
+  }
+  await deletePrivateBlob(pathname);
+}
+
+export async function deleteArtifactById(artifactId: string) {
+  const pointer = decodeArtifactId(artifactId);
+  await deleteArtifactPath(pointer.pathname, pointer.backend);
 }
 
 export async function putExperienceFile(

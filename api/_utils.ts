@@ -28,9 +28,31 @@ export function methodNotAllowed(res: ServerResponse) {
   sendJson(res, 405, { ok: false, error: "Method not allowed" });
 }
 
+const SENSITIVE_FIELD_PATTERN = /(resume|experience|jd_text|content|artifact|blob|token|authorization|api[-_]?key|password|secret)/i;
+
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    if (value.length > 180) return `[redacted:length=${value.length}]`;
+    return value;
+  }
+
+  if (Array.isArray(value)) return value.map((entry) => redactValue(entry));
+
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = SENSITIVE_FIELD_PATTERN.test(key) ? "[redacted]" : redactValue(nested);
+    }
+    return out;
+  }
+
+  return value;
+}
+
 export function logServerError(route: string, error: unknown, extra?: Record<string, unknown>) {
   const message = error instanceof Error ? error.message : "Unknown error";
-  console.error(JSON.stringify({ level: "error", route, message, ...extra }));
+  const safe = redactValue(extra ?? {}) as Record<string, unknown>;
+  console.error(JSON.stringify({ level: "error", route, message, sensitive: true, ...safe }));
 }
 
 

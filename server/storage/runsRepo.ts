@@ -305,6 +305,110 @@ export async function reserveIdempotencyKey(params: {
   return { status: "in_progress" };
 }
 
+
+
+export async function listUserRuns(userId: string) {
+  const pool = getDbPool();
+  const runs = await pool.query(
+    `select id, user_id, title, status, candidate_name, selected_template, jd_source_type, jd_source_url, jd_text_hash, resume_hash, current_step, error_summary, created_at, updated_at
+     from runs
+     where user_id = $1
+     order by created_at desc`,
+    [userId],
+  );
+  return runs.rows;
+}
+
+export async function listUserRunArtifacts(userId: string) {
+  const pool = getDbPool();
+  const res = await pool.query(
+    `select ra.run_id, ra.type, ra.data, ra.created_at, ra.updated_at
+       from run_artifacts ra
+       join runs r on r.id = ra.run_id
+      where r.user_id = $1
+      order by ra.updated_at desc`,
+    [userId],
+  );
+  return res.rows;
+}
+
+export async function listUserSnapshots(userId: string) {
+  const pool = getDbPool();
+  const res = await pool.query(
+    `select user_id, run_id, snapshot_version, parquet_blob_path, profile_hash, created_at, updated_at
+     from user_profile_snapshots
+     where user_id = $1
+     order by updated_at desc`,
+    [userId],
+  );
+  return res.rows;
+}
+
+export async function clearExpiredRawData(olderThanDays: number) {
+  const pool = getDbPool();
+  const res = await pool.query(
+    `update runs
+     set jd_text = '',
+         experience_text = null,
+         experience_file_url = null,
+         experience_file_pathname = null,
+         updated_at = now()
+     where updated_at < (now() - ($1::int * interval '1 day'))
+       and (coalesce(jd_text, '') <> '' or experience_text is not null or experience_file_url is not null)
+     returning id, user_id`,
+    [olderThanDays],
+  );
+  return res.rows as Array<{ id: string; user_id: string }>;
+}
+
+export async function deleteExpiredArtifacts(olderThanDays: number) {
+  const pool = getDbPool();
+  const res = await pool.query(
+    `delete from run_artifacts
+      where updated_at < (now() - ($1::int * interval '1 day'))
+      returning run_id, type, data`,
+    [olderThanDays],
+  );
+  return res.rows as Array<{ run_id: string; type: string; data: Record<string, unknown> }>;
+}
+
+export async function deleteExpiredSnapshots(olderThanDays: number) {
+  const pool = getDbPool();
+  const res = await pool.query(
+    `delete from user_profile_snapshots
+      where updated_at < (now() - ($1::int * interval '1 day'))
+      returning user_id, run_id, snapshot_version, parquet_blob_path`,
+    [olderThanDays],
+  );
+  return res.rows as Array<{ user_id: string; run_id: string; snapshot_version: number; parquet_blob_path: string }>;
+}
+
+export async function listUserBlobReferences(userId: string) {
+  const pool = getDbPool();
+  const [runs, artifacts, snapshots] = await Promise.all([
+    pool.query(`select experience_file_url from runs where user_id = $1 and experience_file_url is not null`, [userId]),
+    pool.query(
+      `select ra.data
+         from run_artifacts ra
+         join runs r on r.id = ra.run_id
+        where r.user_id = $1`,
+      [userId],
+    ),
+    pool.query(`select parquet_blob_path from user_profile_snapshots where user_id = $1`, [userId]),
+  ]);
+  return {
+    runArtifactIds: runs.rows.map((row) => row.experience_file_url as string),
+    artifactRows: artifacts.rows as Array<{ data: Record<string, unknown> }>,
+    snapshotPaths: snapshots.rows.map((row) => row.parquet_blob_path as string),
+  };
+}
+
+export async function eraseUserData(userId: string) {
+  const pool = getDbPool();
+  const deleted = await pool.query(`delete from runs where user_id = $1 returning id`, [userId]);
+  await pool.query(`delete from user_profile_snapshots where user_id = $1`, [userId]);
+  return deleted.rows as Array<{ id: string }>;
+}
 export async function completeIdempotencyKey(params: {
   scope: string;
   key: string;
