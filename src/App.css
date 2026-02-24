@@ -1062,6 +1062,29 @@ textarea {
   height: 100%;
 }
 
+.cv-preview-surface {
+  width: 100%;
+  background: #f1f2f4;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.cv-preview-page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  aspect-ratio: 210 / 297;
+  background: #fcfcfd;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.1);
+}
+
+.cv-preview-page .preview-content {
+  height: 100%;
+  min-height: 0;
+  padding: 1.2rem;
+}
+
 .preview-content {
   transform-origin: top left;
   width: 100%;
