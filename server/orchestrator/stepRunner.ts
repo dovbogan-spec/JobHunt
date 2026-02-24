@@ -11,6 +11,31 @@ const RETRY_DEFAULTS = {
   baseDelayMs: Number(process.env.ORCHESTRATOR_RETRY_BASE_DELAY_MS || 300),
 };
 
+const QUALITY_GATE_MIN_CONFIDENCE = Number(process.env.ORCHESTRATOR_QUALITY_MIN_CONFIDENCE || 0.7);
+
+function shouldRunQualityEvaluator(stepIndex: number) {
+  const enabled = ["1", "true", "yes", "on"].includes(
+    (process.env.FEATURE_ENABLE_PROD_QUALITY_EVALUATOR || "").toLowerCase(),
+  );
+  return process.env.NODE_ENV === "production" && enabled && [1, 4].includes(stepIndex);
+}
+
+function flattenSchemaIssues(error: { issues: Array<{ path: (string | number)[]; message: string }> }) {
+  return error.issues.map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`);
+}
+
+function buildStructuredFailure(
+  code: string,
+  details: Record<string, unknown>,
+  fallbackMessage: string,
+): { code: string; message: string; details: Record<string, unknown> } {
+  return {
+    code,
+    message: fallbackMessage,
+    details,
+  };
+}
+
 function missingRequiredInputs(stepIndex: number, run: Record<string, unknown> | null) {
   const jdText = typeof run?.jd_text === "string" ? run.jd_text.trim() : "";
   const experienceText = typeof run?.experience_text === "string" ? run.experience_text.trim() : "";
@@ -77,17 +102,19 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     return { ok: false, error: requiredInputError };
   }
 
+  const executionContext = {
+    runId,
+    context: { run: snapshot.run, artifacts: snapshot.artifacts },
+    inputs: {
+      jd_text: snapshot.run?.jd_text,
+      experience_text: snapshot.run?.experience_text,
+      artifacts: snapshot.artifacts,
+    },
+  };
+
   const rawResult = await withRetry(
     () =>
-      agent.run({
-        runId,
-        context: { run: snapshot.run, artifacts: snapshot.artifacts },
-        inputs: {
-          jd_text: snapshot.run?.jd_text,
-          experience_text: snapshot.run?.experience_text,
-          artifacts: snapshot.artifacts,
-        },
-      }),
+      agent.run(executionContext),
     {
       ...RETRY_DEFAULTS,
       onRetry: ({ attempt, delayMs, error }) => {
@@ -109,9 +136,12 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
 
   const parsedResult = agentResultSchema.safeParse(rawResult);
   if (!parsedResult.success) {
-    const schemaError = parsedResult.error.issues
-      .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
-      .join("; ");
+    const issues = flattenSchemaIssues(parsedResult.error);
+    const hardFailure = buildStructuredFailure(
+      "OUTPUT_SCHEMA_MISMATCH",
+      { stage: "base_result", issues },
+      `Agent output schema mismatch: ${issues.join("; ")}`,
+    );
     await saveStep({
       runId,
       stepIndex,
@@ -119,13 +149,109 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
       status: "failed",
       inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
       outputJson: rawResult,
-      error: `Agent output schema mismatch: ${schemaError}`,
+      error: hardFailure,
       artifactsJson: snapshot.artifacts,
     });
     await updateRunStatus(runId, "failed");
-    return { ok: false, error: `Agent output schema mismatch: ${schemaError}` };
+    await createEvent(runId, "validation_gate_failed", { stepIndex, gate: "stage_1", error: hardFailure });
+    return { ok: false, error: hardFailure.message };
   }
-  const result = parsedResult.data;
+  let result = parsedResult.data;
+
+  const primaryArtifact = result.artifactUpdates.find((artifact) => artifact.type === agent.artifactType);
+  let validationAttemptedRepair = false;
+  let stage1Event: Record<string, unknown> = {
+    stepIndex,
+    gate: "stage_1",
+    targetSchema: `${agent.name}.outputSchema`,
+    initialValid: false,
+    repaired: false,
+    finalValid: false,
+  };
+
+  const initialAgentSpecificValidation = agent.outputSchema.safeParse(primaryArtifact?.data);
+  if (initialAgentSpecificValidation.success) {
+    stage1Event = { ...stage1Event, initialValid: true, finalValid: true };
+  } else {
+    validationAttemptedRepair = true;
+    const repairRaw = await agent.repair(executionContext, {
+      strictJsonOnly: true,
+      schemaName: `${agent.name}.outputSchema`,
+    });
+    const repairParsed = agentResultSchema.safeParse(repairRaw);
+    if (repairParsed.success) {
+      const repairedArtifact = repairParsed.data.artifactUpdates.find((artifact) => artifact.type === agent.artifactType);
+      const repairedValidation = agent.outputSchema.safeParse(repairedArtifact?.data);
+      if (repairedValidation.success) {
+        result = repairParsed.data;
+        stage1Event = { ...stage1Event, repaired: true, finalValid: true };
+      } else {
+        const issues = flattenSchemaIssues(repairedValidation.error);
+        const hardFailure = buildStructuredFailure(
+          "AGENT_OUTPUT_INVALID_AFTER_REPAIR",
+          {
+            stage: "agent_specific",
+            issues,
+            repairAttempted: true,
+            targetSchema: `${agent.name}.outputSchema`,
+          },
+          "Agent output failed schema validation after repair",
+        );
+        await saveStep({
+          runId,
+          stepIndex,
+          agentId: agent.name,
+          status: "failed",
+          inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+          outputJson: repairRaw,
+          error: hardFailure,
+          artifactsJson: snapshot.artifacts,
+        });
+        await updateRunStatus(runId, "failed");
+        await createEvent(runId, "validation_gate_failed", {
+          stepIndex,
+          gate: "stage_1",
+          attemptedRepair: true,
+          error: hardFailure,
+        });
+        return { ok: false, error: hardFailure.message };
+      }
+    } else {
+      const issues = flattenSchemaIssues(repairParsed.error);
+      const hardFailure = buildStructuredFailure(
+        "REPAIR_RESULT_SCHEMA_MISMATCH",
+        {
+          stage: "base_result_after_repair",
+          issues,
+          repairAttempted: true,
+        },
+        "Repair response did not match orchestrator schema",
+      );
+      await saveStep({
+        runId,
+        stepIndex,
+        agentId: agent.name,
+        status: "failed",
+        inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
+        outputJson: repairRaw,
+        error: hardFailure,
+        artifactsJson: snapshot.artifacts,
+      });
+      await updateRunStatus(runId, "failed");
+      await createEvent(runId, "validation_gate_failed", {
+        stepIndex,
+        gate: "stage_1",
+        attemptedRepair: true,
+        error: hardFailure,
+      });
+      return { ok: false, error: hardFailure.message };
+    }
+  }
+
+  await createEvent(runId, "validation_gate_passed", {
+    ...stage1Event,
+    attemptedRepair: validationAttemptedRepair,
+  });
 
   if (!result.ok) {
     const errorText = result.errors.join("; ") || "Agent failed";
@@ -144,6 +270,59 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     return { ok: false };
   }
 
+  const gateEvents: Array<Record<string, unknown>> = [
+    {
+      gate: "stage_1",
+      attemptedRepair: validationAttemptedRepair,
+      finalStatus: "passed",
+    },
+  ];
+
+  if (shouldRunQualityEvaluator(stepIndex) && agent.evaluate) {
+    const evaluation = await agent.evaluate(executionContext, result);
+    const qualityEvent: Record<string, unknown> = {
+      stepIndex,
+      gate: "stage_2",
+      confidence: evaluation.confidence,
+      threshold: QUALITY_GATE_MIN_CONFIDENCE,
+      revisionRequested: false,
+      status: "passed",
+      notes: evaluation.notes,
+    };
+    if (evaluation.confidence < QUALITY_GATE_MIN_CONFIDENCE) {
+      const revisionRaw = await agent.repair(executionContext, {
+        strictJsonOnly: true,
+        schemaName: `${agent.name}.outputSchema`,
+      });
+      const revisionParsed = agentResultSchema.safeParse(revisionRaw);
+      if (revisionParsed.success) {
+        const revisedArtifact = revisionParsed.data.artifactUpdates.find((artifact) => artifact.type === agent.artifactType);
+        const revisedValidation = agent.outputSchema.safeParse(revisedArtifact?.data);
+        if (revisedValidation.success) {
+          result = revisionParsed.data;
+          qualityEvent.revisionRequested = true;
+          qualityEvent.status = "revised";
+        } else {
+          qualityEvent.revisionRequested = true;
+          qualityEvent.status = "revision_invalid";
+          qualityEvent.issues = flattenSchemaIssues(revisedValidation.error);
+        }
+      } else {
+        qualityEvent.revisionRequested = true;
+        qualityEvent.status = "revision_schema_mismatch";
+        qualityEvent.issues = flattenSchemaIssues(revisionParsed.error);
+      }
+    }
+    gateEvents.push({
+      gate: "stage_2",
+      confidence: evaluation.confidence,
+      threshold: QUALITY_GATE_MIN_CONFIDENCE,
+      revisionRequested: qualityEvent.revisionRequested,
+      finalStatus: qualityEvent.status,
+    });
+    await createEvent(runId, "quality_gate_evaluated", qualityEvent);
+  }
+
   const updatedArtifacts = result.artifactUpdates.map((artifact) => ({ type: artifact.type, data: artifact.data }));
   await upsertArtifacts(runId, updatedArtifacts);
   await saveStep({
@@ -152,7 +331,7 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     agentId: agent.name,
     status: "succeeded",
     inputJson: { artifacts: snapshot.artifacts, run: snapshot.run },
-    outputJson: result,
+    outputJson: { ...result, gateOutcomes: gateEvents },
     artifactsJson: updatedArtifacts,
   });
   await createEvent(runId, "step_completed", { stepIndex, agent: agent.name });
