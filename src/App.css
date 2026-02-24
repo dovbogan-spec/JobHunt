@@ -2001,9 +2001,44 @@ textarea {
   margin: 0;
 }
 
+.preview-modal-header-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.preview-modal-zoom-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.preview-modal-zoom-label {
+  min-width: 3.2rem;
+  text-align: center;
+  font-weight: 600;
+}
+
 .preview-modal-body {
-  overflow: auto;
+  overflow: hidden;
   padding: 0.9rem;
+}
+
+.preview-modal-scroll-container {
+  height: 100%;
+  overflow: auto;
+}
+
+.preview-modal-stage-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.preview-modal-page-wrapper {
+  width: fit-content;
 }
 
 .preview-modal-resume {
