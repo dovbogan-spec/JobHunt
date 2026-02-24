@@ -94,3 +94,17 @@ create table if not exists events (
   payload_json jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+
+create table if not exists run_idempotency_keys (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null,
+  idempotency_key text not null,
+  request_hash text not null,
+  run_id uuid references runs(id) on delete set null,
+  status_code int,
+  response_json jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (scope, idempotency_key)
+);

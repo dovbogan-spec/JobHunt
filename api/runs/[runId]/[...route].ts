@@ -1,15 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { renderToBuffer, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import React from "react";
-import { sendJson, readJson } from "../../_utils.js";
+import { getIdempotencyKey, hashRequest, sendJson, readJson } from "../../_utils.js";
 import { basicRateLimit } from "../../../server/orchestrator/rateLimit.js";
 import { startRun, executeStep } from "../../../server/orchestrator/stepRunner.js";
 import { getConfig } from "../../../server/config/edgeConfig.js";
 import { putExportPdf, putExperienceFile } from "../../../server/storage/blob.js";
 import {
   appendChat,
+  completeIdempotencyKey,
   getRun,
   listEvents,
+  reserveIdempotencyKey,
   saveExperienceUpload,
   updateRunStatus,
   upsertArtifacts,
@@ -70,9 +72,43 @@ export default async function handler(
 
   if (route === "start") {
     if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
+
+    const idempotencyKey = getIdempotencyKey(req);
+    const scope = `runs:start:${runId}`;
+
+    if (idempotencyKey) {
+      const reservation = await reserveIdempotencyKey({
+        scope,
+        key: idempotencyKey,
+        requestHash: hashRequest({ runId, route: "start" }),
+      });
+
+      if (reservation.status === "mismatch") {
+        return sendJson(res, 409, { error: "Idempotency key reuse with different request payload" });
+      }
+      if (reservation.status === "in_progress") {
+        return sendJson(res, 409, { error: "A request with this idempotency key is already in progress" });
+      }
+      if (reservation.status === "replay") {
+        res.setHeader("Idempotent-Replayed", "true");
+        return sendJson(res, reservation.statusCode, reservation.response);
+      }
+    }
+
     const ip = req.socket?.remoteAddress || "unknown";
     if (!basicRateLimit(`start:${ip}`)) return sendJson(res, 429, { error: "Rate limit exceeded" });
     const result = await startRun(runId);
+
+    if (idempotencyKey) {
+      await completeIdempotencyKey({
+        scope,
+        key: idempotencyKey,
+        statusCode: 200,
+        response: result as Record<string, unknown>,
+        runId,
+      });
+    }
+
     return sendJson(res, 200, result);
   }
 

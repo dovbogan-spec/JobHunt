@@ -3,6 +3,13 @@ import { executeGenerateDag } from "./generateDag.js";
 import { getAgentForStep, maxSteps } from "../agents/index.js";
 import { createEvent, getRun, saveStep, updateRunStatus, upsertArtifacts } from "../storage/runsRepo.js";
 import { agentResultSchema } from "../../shared/schemas/api.js";
+import { withRetry } from "./retry.js";
+
+const RETRY_DEFAULTS = {
+  maxAttempts: Number(process.env.ORCHESTRATOR_RETRY_MAX_ATTEMPTS || 3),
+  maxElapsedMs: Number(process.env.ORCHESTRATOR_RETRY_MAX_ELAPSED_MS || 30_000),
+  baseDelayMs: Number(process.env.ORCHESTRATOR_RETRY_BASE_DELAY_MS || 300),
+};
 
 function missingRequiredInputs(stepIndex: number, run: Record<string, unknown> | null) {
   const jdText = typeof run?.jd_text === "string" ? run.jd_text.trim() : "";
@@ -70,15 +77,35 @@ export async function executeStep(runId: string, stepIndex: number, force = fals
     return { ok: false, error: requiredInputError };
   }
 
-  const rawResult = await agent.run({
-    runId,
-    context: { run: snapshot.run, artifacts: snapshot.artifacts },
-    inputs: {
-      jd_text: snapshot.run?.jd_text,
-      experience_text: snapshot.run?.experience_text,
-      artifacts: snapshot.artifacts,
+  const rawResult = await withRetry(
+    () =>
+      agent.run({
+        runId,
+        context: { run: snapshot.run, artifacts: snapshot.artifacts },
+        inputs: {
+          jd_text: snapshot.run?.jd_text,
+          experience_text: snapshot.run?.experience_text,
+          artifacts: snapshot.artifacts,
+        },
+      }),
+    {
+      ...RETRY_DEFAULTS,
+      onRetry: ({ attempt, delayMs, error }) => {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "orchestrator_retry",
+            runId,
+            stepIndex,
+            attempt,
+            delayMs,
+            message,
+          }),
+        );
+      },
     },
-  });
+  );
 
   const parsedResult = agentResultSchema.safeParse(rawResult);
   if (!parsedResult.success) {

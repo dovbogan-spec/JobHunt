@@ -216,3 +216,76 @@ export async function saveExperienceUpload(params: {
     [params.runId, params.fileUrl, params.filePathname, params.experienceText],
   );
 }
+
+type IdempotencyReservation =
+  | { status: "created" }
+  | { status: "replay"; statusCode: number; response: Record<string, unknown> }
+  | { status: "mismatch" }
+  | { status: "in_progress" };
+
+export async function reserveIdempotencyKey(params: {
+  scope: string;
+  key: string;
+  requestHash: string;
+}): Promise<IdempotencyReservation> {
+  const pool = getDbPool();
+
+  const inserted = await pool.query(
+    `insert into run_idempotency_keys (scope, idempotency_key, request_hash)
+     values ($1,$2,$3)
+     on conflict (scope, idempotency_key) do nothing
+     returning id`,
+    [params.scope, params.key, params.requestHash],
+  );
+
+  if (inserted.rowCount && inserted.rowCount > 0) {
+    return { status: "created" };
+  }
+
+  const existing = await pool.query(
+    `select request_hash, status_code, response_json
+     from run_idempotency_keys
+     where scope = $1 and idempotency_key = $2`,
+    [params.scope, params.key],
+  );
+
+  const row = existing.rows[0] as
+    | { request_hash: string; status_code: number | null; response_json: Record<string, unknown> }
+    | undefined;
+  if (!row) {
+    return { status: "in_progress" };
+  }
+
+  if (row.request_hash !== params.requestHash) {
+    return { status: "mismatch" };
+  }
+
+  if (typeof row.status_code === "number") {
+    return {
+      status: "replay",
+      statusCode: row.status_code,
+      response: row.response_json ?? {},
+    };
+  }
+
+  return { status: "in_progress" };
+}
+
+export async function completeIdempotencyKey(params: {
+  scope: string;
+  key: string;
+  statusCode: number;
+  response: Record<string, unknown>;
+  runId?: string;
+}) {
+  const pool = getDbPool();
+  await pool.query(
+    `update run_idempotency_keys
+     set status_code = $3,
+         response_json = $4,
+         run_id = coalesce($5, run_id),
+         updated_at = now()
+     where scope = $1 and idempotency_key = $2`,
+    [params.scope, params.key, params.statusCode, JSON.stringify(params.response), params.runId ?? null],
+  );
+}

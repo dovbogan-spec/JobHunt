@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import { createHash } from "node:crypto";
 
 export async function readJson(req: IncomingMessage) {
   const chunks: Uint8Array[] = [];
@@ -30,4 +31,16 @@ export function methodNotAllowed(res: ServerResponse) {
 export function logServerError(route: string, error: unknown, extra?: Record<string, unknown>) {
   const message = error instanceof Error ? error.message : "Unknown error";
   console.error(JSON.stringify({ level: "error", route, message, ...extra }));
+}
+
+
+export function getIdempotencyKey(req: IncomingMessage) {
+  const value = req.headers["idempotency-key"] ?? req.headers["x-idempotency-key"];
+  if (Array.isArray(value)) return value[0] ?? null;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function hashRequest(value: unknown) {
+  const normalized = JSON.stringify(value ?? {});
+  return createHash("sha256").update(normalized).digest("hex");
 }
