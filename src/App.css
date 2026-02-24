@@ -137,7 +137,22 @@ button:disabled {
 .tabs-header {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   margin-bottom: 0.4rem;
+}
+
+
+.job-section {
+  max-height: 480px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+}
+
+.job-section.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
 }
 
 .tabs button {
@@ -299,10 +314,17 @@ textarea {
   font-size: 1.05rem;
 }
 
+.hamburger-toggle {
+  transition: transform 0.3s ease;
+}
+
+.hamburger-toggle.active {
+  transform: rotate(180deg);
+}
+
 .filters-line {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.45rem;
   margin-bottom: 0.7rem;
 }
 
@@ -310,7 +332,6 @@ textarea {
   max-height: 28vh;
   overflow: auto;
   display: grid;
-  gap: 0.45rem;
 }
 
 .experience-list label {
@@ -351,7 +372,6 @@ textarea {
 
 .job-insight-icons {
   display: grid;
-  gap: 0.45rem;
 }
 
 .insight-icon-btn {
@@ -546,7 +566,6 @@ textarea {
 .section-manager-header {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
 }
 
 .section-manager-header h4 {
@@ -615,7 +634,6 @@ textarea {
 .template-option-row {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
 }
 
 .custom-blueprint-row {
@@ -845,7 +863,6 @@ textarea {
 .section-picker-row {
   display: grid;
   grid-template-columns: 110px 1fr;
-  gap: 0.45rem;
 }
 
 .section-picker-row.active {
@@ -879,7 +896,6 @@ textarea {
 .focused-editor-header h4 {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
 }
 
 .focused-editor-kicker {
@@ -891,7 +907,6 @@ textarea {
 
 .focused-editor-actions {
   display: inline-flex;
-  gap: 0.45rem;
 }
 
 .editor-toolbar-strip {
@@ -961,7 +976,6 @@ textarea {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.45rem;
   padding-top: 0.25rem;
   border-top: 1px solid var(--border);
 }
@@ -1044,7 +1058,6 @@ textarea {
 .preview-bottom-actions {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
 }
 
 /* Clickable sections in CV preview */
@@ -1735,7 +1748,6 @@ textarea {
   background: #fff;
   padding: 0.75rem;
   display: grid;
-  gap: 0.45rem;
   box-shadow: 0 4px 12px rgba(10, 44, 30, 0.05);
 }
 
@@ -1804,7 +1816,6 @@ textarea {
 .field-label-row {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.45rem;
   align-items: center;
   font-size: 0.88rem;
 }
