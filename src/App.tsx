@@ -732,7 +732,7 @@ function App() {
   const [_sectionPickerOpen, _setSectionPickerOpen] = useState(false);
   const [_sectionListCollapsed, _setSectionListCollapsed] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
-  const [tabsCollapsed, setTabsCollapsed] = useState(false);
+  const [isJobSectionCollapsed, setIsJobSectionCollapsed] = useState(false);
   const [hasGeneratedResume, setHasGeneratedResume] = useState(false);
   const [showIntake, setShowIntake] = useState(true);
   const [sections, setSections] = useState<ResumeSection[]>(
@@ -2052,95 +2052,95 @@ function App() {
         <div className="main-content">
           <div className="tabs-header">
             <button
-              className="icon-toggle-btn"
-              onClick={() => setTabsCollapsed((prev) => !prev)}
-              title={tabsCollapsed ? "Open tabs" : "Collapse tabs"}
-              aria-label={tabsCollapsed ? "Open tabs" : "Collapse tabs"}
+              className={`icon-toggle-btn hamburger-toggle ${isJobSectionCollapsed ? "active" : ""}`}
+              onClick={() => setIsJobSectionCollapsed((prev) => !prev)}
+              title={isJobSectionCollapsed ? "Show job input" : "Hide job input"}
+              aria-label={isJobSectionCollapsed ? "Show job input" : "Hide job input"}
             >
               ☰
             </button>
           </div>
-          {!tabsCollapsed && (
-            <div className="tabs-row">
-              <nav className="tabs">
-                <button
-                  className={tab === "resume" ? "active" : ""}
-                  onClick={() => setTab("resume")}
-                >
-                  📝 Resume Builder
-                </button>
-                <button
-                  className={tab === "coverLetter" ? "active" : ""}
-                  onClick={() => setTab("coverLetter")}
-                >
-                  ✉️ Cover Letter
-                </button>
-                <button
-                  className={tab === "history" ? "active" : ""}
-                  onClick={() => setTab("history")}
-                >
-                  📚 Submission History
-                </button>
-              </nav>
-              {tab === "resume" && hasGeneratedResume && (
-                <button className="small-action" onClick={() => setShowIntake((prev) => !prev)}>
-                  {showIntake ? "Hide Input" : "Edit Input"}
-                </button>
-              )}
-            </div>
-          )}
+          <div className="tabs-row">
+            <nav className="tabs">
+              <button
+                className={tab === "resume" ? "active" : ""}
+                onClick={() => setTab("resume")}
+              >
+                📝 Resume Builder
+              </button>
+              <button
+                className={tab === "coverLetter" ? "active" : ""}
+                onClick={() => setTab("coverLetter")}
+              >
+                ✉️ Cover Letter
+              </button>
+              <button
+                className={tab === "history" ? "active" : ""}
+                onClick={() => setTab("history")}
+              >
+                📚 Submission History
+              </button>
+            </nav>
+            {tab === "resume" && hasGeneratedResume && (
+              <button className="small-action" onClick={() => setShowIntake((prev) => !prev)}>
+                {showIntake ? "Hide Input" : "Edit Input"}
+              </button>
+            )}
+          </div>
 
           {tab === "resume" && (
             <>
               {showIntake && (
-              <section className="intake">
-                <textarea
-                  placeholder="📄 Paste the job description here"
-                  value={jobText}
-                  onChange={(e) => setJobText(e.target.value)}
-                />
-                <div className="intake-right">
-                  <input
-                    value={jobLink}
-                    onChange={(e) => setJobLink(e.target.value)}
-                    placeholder="🔗 Or paste job link"
-                  />
-                  <input
-                    type="file"
-                    accept=".txt,.md,.rtf,.doc,.docx,.pdf"
-                    onChange={(e) =>
-                      e.target.files && onUpload(e.target.files[0])
-                    }
-                  />
-                  <p className="upload-help">
-                    Upload your career history/CV source file.
-                  </p>
-                  <p className="upload-help">
-                    Personal details are auto-populated from uploaded career history.
-                  </p>
-                  <select
-                    value={template}
-                    onChange={(e) =>
-                      setTemplate(e.target.value as TemplateName)
-                    }
-                  >
-                    {TEMPLATES.map((name) => (
-                      <option key={name} value={name}>
-                        {name} Template
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="primary generate-btn"
-                    onClick={generateResume}
-                    disabled={analyzingRequirements}
-                  >
-                    {analyzingRequirements
-                      ? "⚙️ Running Agents…"
-                      : "🚀 Generate Resume"}
-                  </button>
+                <div className={`job-section ${isJobSectionCollapsed ? "collapsed" : ""}`}>
+                  <section className="intake">
+                    <textarea
+                      placeholder="📄 Paste the job description here"
+                      value={jobText}
+                      onChange={(e) => setJobText(e.target.value)}
+                    />
+                    <div className="intake-right">
+                      <input
+                        value={jobLink}
+                        onChange={(e) => setJobLink(e.target.value)}
+                        placeholder="🔗 Or paste job link"
+                      />
+                      <input
+                        type="file"
+                        accept=".txt,.md,.rtf,.doc,.docx,.pdf"
+                        onChange={(e) =>
+                          e.target.files && onUpload(e.target.files[0])
+                        }
+                      />
+                      <p className="upload-help">
+                        Upload your career history/CV source file.
+                      </p>
+                      <p className="upload-help">
+                        Personal details are auto-populated from uploaded career history.
+                      </p>
+                      <select
+                        value={template}
+                        onChange={(e) =>
+                          setTemplate(e.target.value as TemplateName)
+                        }
+                      >
+                        {TEMPLATES.map((name) => (
+                          <option key={name} value={name}>
+                            {name} Template
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="primary generate-btn"
+                        onClick={generateResume}
+                        disabled={analyzingRequirements}
+                      >
+                        {analyzingRequirements
+                          ? "⚙️ Running Agents…"
+                          : "🚀 Generate Resume"}
+                      </button>
+                    </div>
+                  </section>
                 </div>
-              </section>
               )}
 
               <section className={`workspace ${editMode ? "workspace-edit-mode" : ""}`}>
