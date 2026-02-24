@@ -2238,14 +2238,14 @@ function App() {
                         {INSIGHT_TABS.map((name) => (
                           <button
                             key={name}
-                            className={`insight-icon-btn ${insightTab === name ? "active" : ""}`}
+                            className={`skill-chip ${insightTab === name ? "active" : ""}`}
                             onClick={() => setInsightTab(name)}
                             title={INSIGHT_TAB_LABELS[name]}
                           >
-                            <span className="insight-pill-icon">
+                            <span className="skill-chip__icon">
                               {INSIGHT_TAB_ICONS[name]}
                             </span>
-                            <span className="insight-pill-label">
+                            <span className="skill-chip__label">
                               {INSIGHT_TAB_LABELS[name]}
                             </span>
                           </button>
