@@ -577,33 +577,35 @@ textarea {
 .section-manager-header {
   display: flex;
   align-items: center;
-}
-
-.section-manager-header h4 {
-  margin: 0;
-  flex: 1;
+  justify-content: space-between;
 }
 
 .add-section-btn {
-  width: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: var(--radius-button);
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 999px;
   padding: 0;
   font-size: 1.3rem;
   line-height: 1;
   font-weight: 700;
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #2c5244;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
 
 .add-section-btn:hover {
-  background: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.14);
+  transform: scale(1.03);
 }
 
 .add-section-modal {
@@ -751,7 +753,8 @@ textarea {
 }
 
 .section-pencil-btn,
-.section-visibility-btn {
+.section-visibility-btn,
+.section-delete-btn {
   width: 30px;
   height: 30px;
   min-height: 30px;
@@ -769,7 +772,8 @@ textarea {
 }
 
 .section-pencil-btn svg,
-.section-visibility-btn svg {
+.section-visibility-btn svg,
+.section-delete-btn svg {
   width: 14px;
   height: 14px;
   stroke: currentColor;
@@ -780,10 +784,15 @@ textarea {
 }
 
 .section-pencil-btn:hover,
-.section-visibility-btn:hover {
+.section-visibility-btn:hover,
+.section-delete-btn:hover {
   background: #dcece3;
   border-color: #97b8a8;
   box-shadow: 0 1px 4px rgba(19, 66, 49, 0.14);
+}
+
+.section-delete-btn {
+  color: #915656;
 }
 
 .section-row-label {
@@ -797,8 +806,18 @@ textarea {
   text-overflow: ellipsis;
 }
 
+.section-row-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
 .section-visibility-btn {
   margin-left: auto;
+}
+
+.section-row-actions .section-visibility-btn {
+  margin-left: 0;
 }
 
 .section-manager-row.is-hidden .section-visibility-btn {
@@ -892,32 +911,46 @@ textarea {
   padding: 0.9rem;
 }
 
-.focused-editor-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.section-delete-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 25, 22, 0.36);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+}
+
+.section-delete-modal {
+  width: min(420px, calc(100vw - 2rem));
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  box-shadow: 0 20px 40px rgba(10, 20, 16, 0.22);
+  padding: 1rem;
+  display: grid;
   gap: 0.7rem;
 }
 
-.focused-editor-header h4,
-.focused-editor-kicker {
+.section-delete-modal h5,
+.section-delete-modal p {
   margin: 0;
 }
 
-.focused-editor-header h4 {
-  display: inline-flex;
-  align-items: center;
+.section-delete-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
-.focused-editor-kicker {
-  font-size: 0.75rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.section-delete-modal-actions .destructive {
+  background: #d04747;
+  border-color: #d04747;
+  color: #fff;
 }
 
-.focused-editor-actions {
-  display: inline-flex;
+.section-delete-modal-actions .destructive:hover {
+  background: #b93030;
+  border-color: #b93030;
 }
 
 .editor-toolbar-strip {
