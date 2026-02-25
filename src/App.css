@@ -287,10 +287,10 @@ textarea {
 }
 
 .panel-window {
-  border: 1px solid #c5dfd0;
+  border: 1px solid var(--border-accent);
   border-radius: var(--radius-card);
   padding: 1rem;
-  background: linear-gradient(180deg, #f6fcf8 0%, #eef7f1 100%);
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-panel) 100%);
   box-shadow: 0 8px 24px var(--bg-accent);
   min-height: 340px;
   display: grid;
@@ -338,13 +338,13 @@ textarea {
   display: grid;
   gap: 0.22rem;
   background: var(--bg-panel);
-  border: 1px solid #dcf0e3;
+  border: 1px solid var(--border-accent);
   border-radius: var(--radius-card);
   padding: 0.5rem;
 }
 
 .experience-list small {
-  color: #3b6250;
+  color: var(--muted);
 }
 
 .experience-pagination {
