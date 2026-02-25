@@ -962,6 +962,12 @@ textarea {
   padding: 0.3rem 0.65rem;
 }
 
+.editor-toolbar-strip button.is-active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
 .rich-editor-surface {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
