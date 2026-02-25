@@ -24,6 +24,7 @@
     "@vercel/edge-config": "^1.4.3",
     "jsdom": "^26.0.0",
     "jspdf": "^4.1.0",
+    "lucide-react": "^0.468.0",
     "mammoth": "^1.11.0",
     "parquetjs-lite": "^0.8.7",
     "pdf-parse": "^2.4.5",
