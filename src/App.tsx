@@ -22,7 +22,7 @@ import { MODEL_CATALOG, getDefaultModel, getModelsForProvider, type LlmProvider 
 import { PreviewModal } from "./components/PreviewModal";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { RichTextEditor } from "./components/RichTextEditor";
-import { ensureRichHtml } from "./utils/richText";
+import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -63,8 +63,9 @@ type EducationItem = {
   endDate: string;
   description: string;
 };
-type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel };
-type ResumeLanguageEntry = { id: string; name: string; level: LanguageLevel };
+type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel; content: string };
+type ResumeLanguageEntry = { id: string; name: string; level: LanguageLevel; content: string };
+type ResumeInterestEntry = { id: string; name: string; content: string };
 type SkillEntry = { id: string; name: string; level: string };
 type CustomFieldType =
   | "title"
@@ -103,7 +104,7 @@ type ResumeData = {
   experience: ResumeExperienceItem[];
   education: EducationItem[];
   skills: ResumeSkillEntry[];
-  interests: string[];
+  interests: ResumeInterestEntry[];
   languages: ResumeLanguageEntry[];
   organization: string;
 };
@@ -396,9 +397,9 @@ const initialResume: ResumeData = {
   profile: "",
   experience: [],
   skills: [
-    { id: uuidv4(), skillName: "Applied AI & Machine Learning", proficiency: "Advanced" },
-    { id: uuidv4(), skillName: "React + TypeScript", proficiency: "Advanced" },
-    { id: uuidv4(), skillName: "System Design", proficiency: "Intermediate" },
+    { id: uuidv4(), skillName: "Applied AI & Machine Learning", proficiency: "Advanced", content: "" },
+    { id: uuidv4(), skillName: "React + TypeScript", proficiency: "Advanced", content: "" },
+    { id: uuidv4(), skillName: "System Design", proficiency: "Intermediate", content: "" },
   ],
   education: [
     {
@@ -410,8 +411,12 @@ const initialResume: ResumeData = {
       description: "",
     },
   ],
-  interests: ["Product strategy", "Open source", "Mentoring"],
-  languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)" }],
+  interests: [
+    { id: uuidv4(), name: "Product strategy", content: "" },
+    { id: uuidv4(), name: "Open source", content: "" },
+    { id: uuidv4(), name: "Mentoring", content: "" },
+  ],
+  languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)", content: "" }],
   organization: "",
 };
 const defaultLlmSettings: LlmSettings = {
@@ -548,18 +553,23 @@ function migrateResumeData(value: unknown): ResumeData {
               institution: item.institution || "",
               startDate: item.startDate || "",
               endDate: item.endDate || "",
-              description: item.description || "",
+              description: ensureRichHtml(String(item.description || "")),
             },
       )
     : [];
 
   const skills = Array.isArray(source.skills)
-    ? (source.skills as ResumeSkillEntry[])
+    ? (source.skills as Array<ResumeSkillEntry | string>).map((skill) =>
+        typeof skill === "string"
+          ? { id: uuidv4(), skillName: skill, proficiency: "Advanced" as ProficiencyLevel, content: "" }
+          : { ...skill, id: skill.id || uuidv4(), content: ensureRichHtml(String(skill.content || "")) },
+      )
     : Array.isArray(source.keySkills)
       ? (source.keySkills as string[]).map((skill) => ({
           id: uuidv4(),
           skillName: skill,
           proficiency: "Advanced" as ProficiencyLevel,
+          content: "",
         }))
       : [];
 
@@ -571,6 +581,7 @@ function migrateResumeData(value: unknown): ResumeData {
             id: item.id || uuidv4(),
             name: legacyItem.name || legacyItem.language || "",
             level: normalizeLanguageLevel(item.level),
+            content: ensureRichHtml(String(legacyItem.content || "")),
           } satisfies ResumeLanguageEntry;
         }
         const [name, level] = item.split("—").map((part) => part.trim());
@@ -578,6 +589,7 @@ function migrateResumeData(value: unknown): ResumeData {
           id: uuidv4(),
           name: name || item,
           level: normalizeLanguageLevel(level),
+          content: "",
         };
       })
     : [];
@@ -593,11 +605,23 @@ function migrateResumeData(value: unknown): ResumeData {
       portfolio,
     },
     profile: ensureRichHtml(String(source.profile || "")),
-    experience,
+    experience: experience.map((item) => ({ ...item, description: ensureRichHtml(String(item.description || "")) })),
     education,
     skills,
     interests: Array.isArray(source.interests)
-      ? source.interests.map((item) => String(item)).filter(Boolean)
+      ? source.interests
+          .map((item) => {
+            if (typeof item === "string") {
+              return { id: uuidv4(), name: item, content: "" } satisfies ResumeInterestEntry;
+            }
+            const legacyItem = item as ResumeInterestEntry;
+            return {
+              id: legacyItem.id || uuidv4(),
+              name: String(legacyItem.name || ""),
+              content: ensureRichHtml(String(legacyItem.content || "")),
+            } satisfies ResumeInterestEntry;
+          })
+          .filter((item) => item.name.trim().length > 0)
       : [],
     languages,
     organization: String(source.organization || ""),
@@ -702,7 +726,7 @@ function App() {
   const [experienceDoc, setExperienceDoc] = useState("");
   const [experienceItems, setExperienceItems] = useState<ExperienceItem[]>([]);
   const [resume, setResume] = useState<ResumeData>(
-    initialDraftSnapshot?.resume ?? initialResume,
+    migrateResumeData(initialDraftSnapshot?.resume ?? initialResume),
   );
   const [coverLetter, setCoverLetter] = useState("");
   const [coverLetterNotes, setCoverLetterNotes] = useState("");
@@ -726,7 +750,7 @@ function App() {
   const [_zoom, _setZoom] = useState(1);
   const [editMode, setEditMode] = useState(initialDraftSnapshot?.editMode ?? false);
   const [editorDraft, setEditorDraft] = useState<ResumeData>(
-    initialDraftSnapshot?.editorDraft ?? initialDraftSnapshot?.resume ?? initialResume,
+    migrateResumeData(initialDraftSnapshot?.editorDraft ?? initialDraftSnapshot?.resume ?? initialResume),
   );
   const [_experienceEditor, _setExperienceEditor] = useState<ExperienceEditorItem[]>([]);
   const [_draggingSection, _setDraggingSection] = useState<string | null>(null);
@@ -1446,10 +1470,14 @@ function App() {
         )),
         skills: (((draft.selectedSkills as string[] | undefined) ||
           (job.mustHaves as string[] | undefined) ||
-          []).slice(0, 12)).map((skill) => ({ id: uuidv4(), skillName: skill, proficiency: "Advanced" })),
+          []).slice(0, 12)).map((skill) => ({ id: uuidv4(), skillName: skill, proficiency: "Advanced", content: "" })),
         education: [{ id: uuidv4(), degree: "BSc, Computer Science", institution: "Your University", startDate: "", endDate: "", description: "" }],
-        interests: ["Product strategy", "Open source", "Mentoring"],
-        languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)" }],
+        interests: [
+          { id: uuidv4(), name: "Product strategy", content: "" },
+          { id: uuidv4(), name: "Open source", content: "" },
+          { id: uuidv4(), name: "Mentoring", content: "" },
+        ],
+        languages: [{ id: uuidv4(), name: "English", level: "Advanced (C1)", content: "" }],
         experience: parsed.map((item, i) => ({
           id: item.id,
           jobTitle: "",
@@ -1457,7 +1485,7 @@ function App() {
           startDate: "",
           endDate: "",
           location: "",
-          description: ((draft.tailoredExperience as string[] | undefined) || [])[i] || item.text,
+          description: ensureRichHtml(String(((draft.tailoredExperience as string[] | undefined) || [])[i] || item.text)),
           visible: true,
           order: i,
         })),
@@ -1550,6 +1578,7 @@ function App() {
         id: prev.skills[index]?.id || uuidv4(),
         skillName: skill,
         proficiency: prev.skills[index]?.proficiency || "Advanced",
+        content: prev.skills[index]?.content || "",
       })),
     }));
     setChatMessages((prev) => [
@@ -1570,7 +1599,7 @@ function App() {
           startDate: "",
           endDate: "",
           location: "",
-          description: item.text,
+          description: ensureRichHtml(item.text),
           visible: true,
           order: index,
         })),
@@ -1762,7 +1791,7 @@ function App() {
   function addSkillEntry() {
     setEditorDraft((prev) => ({
       ...prev,
-      skills: [...prev.skills, { id: uuidv4(), skillName: "", proficiency: "Intermediate" }],
+      skills: [...prev.skills, { id: uuidv4(), skillName: "", proficiency: "Intermediate", content: "" }],
     }));
   }
   function updateSkillEntry(id: string, field: keyof ResumeSkillEntry, value: string) {
@@ -1855,7 +1884,7 @@ function App() {
         return {
           ...prev,
           interests: prev.interests.map((item, itemIndex) =>
-            itemIndex === index ? value : item,
+            itemIndex === index ? { ...item, name: value } : item,
           ),
         };
       }
@@ -1895,14 +1924,19 @@ function App() {
         setPendingLanguageFocusId(languageId);
         return {
           ...prev,
-          languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL }],
+          languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL, content: "" }],
         };
       }
-      return { ...prev, interests: [...prev.interests, ""] };
+      return { ...prev, interests: [...prev.interests, { id: uuidv4(), name: "", content: "" }] };
     });
   }
   function toPlainText(value: string) {
     return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function renderSafeRichText(value: string, fallback = "") {
+    const sanitized = sanitizeRichHtml(ensureRichHtml(value || ""));
+    return sanitized || fallback;
   }
 
   function generateCoverLetter() {
@@ -2035,7 +2069,7 @@ function App() {
           return (
             <div key={section.id}>
               <h4>{section.label}</h4>
-              <div className="preview-text" dangerouslySetInnerHTML={{ __html: previewResume.profile || "<p>Write your profile…</p>" }} />
+              <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(previewResume.profile, "<p>Write your profile…</p>") }} />
             </div>
           );
         }
@@ -2058,7 +2092,7 @@ function App() {
                 <div className="bullet-row" key={item.id}>
                   <p className="preview-text"><strong>{item.jobTitle}</strong> · {item.employer}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
-                  <p className="preview-bullet">• {toPlainText(item.description)}</p>
+                  <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(item.description) }} />
                 </div>
               ))}
             </div>
@@ -2083,7 +2117,7 @@ function App() {
                 <div className="bullet-row" key={item.id}>
                   <p className="preview-text"><strong>{item.degree}</strong> · {item.institution}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate}</p>
-                  <p className="preview-bullet">• {toPlainText(item.description)}</p>
+                  <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(item.description) }} />
                 </div>
               ))}
             </div>
@@ -2104,7 +2138,12 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <p className="preview-text">{previewResume.skills.map((skill) => `${skill.skillName} (${skill.proficiency})`).join(" · ")}</p>
+              <div>{previewResume.skills.map((skill) => (
+                <div className="bullet-row" key={skill.id}>
+                  <p className="preview-text"><strong>{skill.skillName}</strong> ({skill.proficiency})</p>
+                  <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(skill.content) }} />
+                </div>
+              ))}</div>
             </div>
           );
         }
@@ -2123,7 +2162,12 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <p className="preview-text">{previewResume.interests.join(" · ")}</p>
+              <div>{previewResume.interests.map((interest) => (
+                <div className="bullet-row" key={interest.id}>
+                  <p className="preview-text"><strong>{interest.name}</strong></p>
+                  <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(interest.content) }} />
+                </div>
+              ))}</div>
             </div>
           );
         }
@@ -2142,7 +2186,12 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <p className="preview-text">{previewResume.languages.map((language) => `${language.name} — ${language.level}`).join(" · ")}</p>
+              <div>{previewResume.languages.map((language) => (
+                <div className="bullet-row" key={language.id}>
+                  <p className="preview-text"><strong>{language.name}</strong> — {language.level}</p>
+                  <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(language.content) }} />
+                </div>
+              ))}</div>
             </div>
           );
         }
@@ -2660,20 +2709,22 @@ function App() {
                               <input value={item.startDate} placeholder="Start date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, startDate: e.target.value } : si) }))} />
                               <input value={item.endDate} placeholder="End date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, endDate: e.target.value } : si) }))} />
                               <input value={item.location} placeholder="Location" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, location: e.target.value } : si) }))} />
-                              <textarea
-                                className="manual-editor-box"
-                                value={item.description}
-                                rows={3}
-                                placeholder="Impact description"
-                                onChange={(e) =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    experience: prev.experience.map((si, i) =>
-                                      i === index ? { ...si, description: e.target.value } : si,
-                                    ),
-                                  }))
-                                }
-                              />
+                              <div>
+                                <p className="preview-text">Description</p>
+                                <RichTextEditor
+                                  value={item.description}
+                                  placeholder="Impact description"
+                                  debounceMs={350}
+                                  onCommit={(descriptionHtml) =>
+                                    setEditorDraft((prev) => ({
+                                      ...prev,
+                                      experience: prev.experience.map((si, i) =>
+                                        i === index ? { ...si, description: descriptionHtml } : si,
+                                      ),
+                                    }))
+                                  }
+                                />
+                              </div>
                               <button
                                 className="remove-field-btn"
                                 onClick={() =>
@@ -2716,6 +2767,15 @@ function App() {
                                 placeholder="Level (e.g. Expert, Intermediate)"
                                 onChange={(e) => updateSkillEntry(entry.id, "proficiency", e.target.value)}
                               />
+                              <div>
+                                <p className="preview-text">Details</p>
+                                <RichTextEditor
+                                  value={entry.content}
+                                  placeholder="Describe projects, tools, or depth in this skill"
+                                  debounceMs={350}
+                                  onCommit={(contentHtml) => updateSkillEntry(entry.id, "content", contentHtml)}
+                                />
+                              </div>
                             </div>
                           ))}
                           {editorDraft.skills.length === 0 && (
@@ -2761,9 +2821,38 @@ function App() {
                               >
                                 <input
                                   value={item.degree}
-                                  placeholder="e.g. BSc Computer Science, University Name"
+                                  placeholder="Degree"
                                   onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
                                 />
+                                <input
+                                  value={item.institution}
+                                  placeholder="Institution"
+                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, institution: e.target.value } : entry) }))}
+                                />
+                                <input
+                                  value={item.startDate}
+                                  placeholder="Start date"
+                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, startDate: e.target.value } : entry) }))}
+                                />
+                                <input
+                                  value={item.endDate}
+                                  placeholder="End date"
+                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, endDate: e.target.value } : entry) }))}
+                                />
+                                <div>
+                                  <p className="preview-text">Details</p>
+                                  <RichTextEditor
+                                    value={item.description}
+                                    placeholder="Highlights, coursework, honors"
+                                    debounceMs={350}
+                                    onCommit={(descriptionHtml) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        education: prev.education.map((entry, i) => i === index ? { ...entry, description: descriptionHtml } : entry),
+                                      }))
+                                    }
+                                  />
+                                </div>
                                 <button
                                   className="remove-field-btn"
                                   onClick={() =>
@@ -2807,7 +2896,7 @@ function App() {
                                   listId,
                                   itemId,
                                   index,
-                                  total: (editorDraft[key] as string[]).length,
+                                  total: (editorDraft[key] as Array<unknown>).length,
                                   label: `${key} entry ${index + 1}`,
                                   onMove: (from, to) => moveDraftListEntries(key === "languages" ? "languages" : "interests", from, to),
                                 })}
@@ -2825,8 +2914,8 @@ function App() {
                                 onDragEnd={() => { setDragState(null); setDropTarget(null); }}
                               >
                                 <input
-                                  value={typeof item === "string" ? item : item.name}
-                                  data-language-name-id={typeof item === "string" ? undefined : item.id}
+                                  value={item.name}
+                                  data-language-name-id={item.id}
                                   placeholder={key === "languages" ? "Language (e.g., English)" : ""}
                                   onChange={(e) =>
                                     updateInterestOrLanguageField(
@@ -2836,10 +2925,10 @@ function App() {
                                     )
                                   }
                                 />
-                                {key === "languages" && typeof item !== "string" && (
+                                {key === "languages" && (
                                   <>
                                     <select
-                                      value={item.level}
+                                      value={(item as ResumeLanguageEntry).level}
                                       onChange={(event) => updateLanguageLevel(index, event.target.value as LanguageLevel)}
                                     >
                                       {LANGUAGE_LEVEL_OPTIONS.map((option) => (
@@ -2857,6 +2946,22 @@ function App() {
                                     </button>
                                   </>
                                 )}
+                                <div>
+                                  <p className="preview-text">Details</p>
+                                  <RichTextEditor
+                                    value={item.content}
+                                    placeholder={key === "languages" ? "Language profile" : "Interest details"}
+                                    debounceMs={350}
+                                    onCommit={(contentHtml) =>
+                                      setEditorDraft((prev) => ({
+                                        ...prev,
+                                        [key]: (prev[key] as Array<{ id: string; content: string }>).map((entry, itemIndex) =>
+                                          itemIndex === index ? { ...entry, content: contentHtml } : entry,
+                                        ),
+                                      }))
+                                    }
+                                  />
+                                </div>
                                 {key === "interests" && (
                                   <button
                                     className="remove-field-btn"
