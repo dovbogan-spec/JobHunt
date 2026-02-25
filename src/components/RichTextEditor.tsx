@@ -1,53 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ensureRichHtml } from "../utils/richText";
-
-type RichCommand =
-  | "bold"
-  | "italic"
-  | "underline"
-  | "justifyLeft"
-  | "justifyCenter"
-  | "justifyRight"
-  | "insertUnorderedList"
-  | "insertOrderedList"
-  | "createLink";
-
-type ToolbarAction = {
-  command: RichCommand;
-  label: string;
-  title: string;
-};
-
-type ToolbarProps = {
-  actions: ToolbarAction[];
-  activeCommands: Set<RichCommand>;
-  onCommand: (command: RichCommand) => void;
-};
-
-function EditorToolbar({ actions, activeCommands, onCommand }: ToolbarProps) {
-  return (
-    <div className="editor-toolbar-strip">
-      {actions.map((action) => {
-        const isActive = activeCommands.has(action.command);
-        return (
-          <button
-            key={action.command}
-            type="button"
-            title={action.title}
-            className={isActive ? "is-active" : ""}
-            aria-pressed={isActive}
-            onMouseDown={(event) => {
-              event.preventDefault();
-            }}
-            onClick={() => onCommand(action.command)}
-          >
-            {action.label === "B" ? <strong>{action.label}</strong> : action.label === "I" ? <em>{action.label}</em> : action.label === "U" ? <u>{action.label}</u> : action.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+import { RichTextToolbar, type RichCommand } from "./RichTextToolbar";
 
 type RichTextEditorProps = {
   value: string;
@@ -67,21 +20,6 @@ export function RichTextEditor({
   const localValueRef = useRef<string>(ensureRichHtml(value || ""));
   const selectionRangeRef = useRef<Range | null>(null);
   const [activeCommands, setActiveCommands] = useState<Set<RichCommand>>(new Set());
-
-  const toolbar = useMemo<ToolbarAction[]>(
-    () => [
-      { command: "bold", label: "B", title: "Bold" },
-      { command: "italic", label: "I", title: "Italic" },
-      { command: "underline", label: "U", title: "Underline" },
-      { command: "justifyLeft", label: "⬛", title: "Align left" },
-      { command: "justifyCenter", label: "≡", title: "Align center" },
-      { command: "justifyRight", label: "⬜", title: "Align right" },
-      { command: "insertUnorderedList", label: "• List", title: "Bulleted list" },
-      { command: "insertOrderedList", label: "1. List", title: "Numbered list" },
-      { command: "createLink", label: "🔗", title: "Insert link" },
-    ],
-    [],
-  );
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -137,12 +75,28 @@ export function RichTextEditor({
 
     selectionRangeRef.current = selection.getRangeAt(0).cloneRange();
     const nextActive = new Set<RichCommand>();
-    const commandStates: RichCommand[] = ["bold", "italic", "underline", "insertOrderedList", "insertUnorderedList"];
+    const commandStates: RichCommand[] = [
+      "bold",
+      "italic",
+      "underline",
+      "justifyLeft",
+      "justifyCenter",
+      "justifyRight",
+      "insertOrderedList",
+      "insertUnorderedList",
+    ];
+
     commandStates.forEach((command) => {
       if (document.queryCommandState(command)) {
         nextActive.add(command);
       }
     });
+
+    const targetElement = anchorNode.nodeType === Node.ELEMENT_NODE ? (anchorNode as Element) : anchorNode.parentElement;
+    if (targetElement?.closest("a")) {
+      nextActive.add("createLink");
+    }
+
     setActiveCommands(nextActive);
   }
 
@@ -197,7 +151,7 @@ export function RichTextEditor({
 
   return (
     <>
-      <EditorToolbar actions={toolbar} activeCommands={activeCommands} onCommand={dispatchCommand} />
+      <RichTextToolbar activeCommands={activeCommands} onCommand={dispatchCommand} />
       <div
         ref={editorRef}
         className="rich-editor-surface"
