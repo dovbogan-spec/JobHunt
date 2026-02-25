@@ -1911,6 +1911,33 @@ function App() {
     }));
   }
 
+  function updateExperienceField(
+    index: number,
+    field: "jobTitle" | "employer" | "startDate" | "endDate" | "location",
+    value: string,
+  ) {
+    setEditorDraft((prev) => ({
+      ...prev,
+      experience: prev.experience.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
+    }));
+  }
+
+  function updateExperienceDescription(itemId: string, index: number, descriptionHtml: string) {
+    setEditorDraft((prev) => {
+      const itemByIdIndex = prev.experience.findIndex((item) => item.id === itemId);
+      const targetIndex = itemByIdIndex >= 0 ? itemByIdIndex : index;
+
+      return {
+        ...prev,
+        experience: prev.experience.map((item, itemIndex) =>
+          itemIndex === targetIndex ? { ...item, description: descriptionHtml } : item,
+        ),
+      };
+    });
+  }
+
   function appendListField(key: "education" | "interests" | "languages") {
     setEditorDraft((prev) => {
       if (key === "education") {
@@ -2704,25 +2731,18 @@ function App() {
                           </button>
                           {editorDraft.experience.map((item, index) => (
                             <div className="structured-editor-row" key={item.id}>
-                              <input value={item.jobTitle} placeholder="Job title" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, jobTitle: e.target.value } : si) }))} />
-                              <input value={item.employer} placeholder="Employer" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, employer: e.target.value } : si) }))} />
-                              <input value={item.startDate} placeholder="Start date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, startDate: e.target.value } : si) }))} />
-                              <input value={item.endDate} placeholder="End date" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, endDate: e.target.value } : si) }))} />
-                              <input value={item.location} placeholder="Location" onChange={(e) => setEditorDraft((prev) => ({ ...prev, experience: prev.experience.map((si, i) => i === index ? { ...si, location: e.target.value } : si) }))} />
+                              <input value={item.jobTitle} placeholder="Job title" onChange={(e) => updateExperienceField(index, "jobTitle", e.target.value)} />
+                              <input value={item.employer} placeholder="Employer" onChange={(e) => updateExperienceField(index, "employer", e.target.value)} />
+                              <input value={item.startDate} placeholder="Start date" onChange={(e) => updateExperienceField(index, "startDate", e.target.value)} />
+                              <input value={item.endDate} placeholder="End date" onChange={(e) => updateExperienceField(index, "endDate", e.target.value)} />
+                              <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(index, "location", e.target.value)} />
                               <div>
                                 <p className="preview-text">Description</p>
                                 <RichTextEditor
                                   value={item.description}
                                   placeholder="Impact description"
                                   debounceMs={350}
-                                  onCommit={(descriptionHtml) =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      experience: prev.experience.map((si, i) =>
-                                        i === index ? { ...si, description: descriptionHtml } : si,
-                                      ),
-                                    }))
-                                  }
+                                  onCommit={(descriptionHtml) => updateExperienceDescription(item.id, index, descriptionHtml)}
                                 />
                               </div>
                               <button
