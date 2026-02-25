@@ -21,6 +21,7 @@ import { AGENT_PROMPTS, type AgentPromptId } from "./agentPrompts";
 import { MODEL_CATALOG, getDefaultModel, getModelsForProvider, type LlmProvider as CatalogLlmProvider } from "./config/modelDefinitions";
 import { PreviewModal } from "./components/PreviewModal";
 import { SettingsMenu } from "./components/SettingsMenu";
+import { RichTextEditor } from "./components/RichTextEditor";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -811,7 +812,6 @@ function App() {
   }, [editorDraft.languages, pendingLanguageFocusId]);
   const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const deleteCancelButtonRef = useRef<HTMLButtonElement | null>(null);
-  const richTextEditorRef = useRef<HTMLDivElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const previewResume = editMode ? editorDraft : resume;
   const activeSection = sections.find((section) => section.id === activeSectionId);
@@ -1842,17 +1842,7 @@ function App() {
       setActiveSectionId(firstVisibleSection.id);
     }
   }, [activeSectionId, editMode, sections]);
-  function applyRichCommand(command: "bold" | "italic" | "underline" | "insertUnorderedList" | "createLink" | "justifyLeft" | "justifyCenter" | "justifyRight") {
-    if (!richTextEditorRef.current) return;
-    richTextEditorRef.current.focus();
-    if (command === "createLink") {
-      const url = window.prompt("Enter link URL", "https://");
-      if (!url) return;
-      document.execCommand("createLink", false, url);
-      return;
-    }
-    document.execCommand(command, false);
-  }
+
 
   function updateInterestOrLanguageField(
     key: "interests" | "languages",
@@ -2044,7 +2034,7 @@ function App() {
           return (
             <div key={section.id}>
               <h4>{section.label}</h4>
-              <p className="preview-text">{previewResume.profile}</p>
+              <div className="preview-text" dangerouslySetInnerHTML={{ __html: previewResume.profile || "<p>Write your profile…</p>" }} />
             </div>
           );
         }
@@ -2632,32 +2622,17 @@ function App() {
 
                       {/* Profile */}
                       {activeSectionId === "profile" && (
-                        <>
-                          <div className="editor-toolbar-strip">
-                            <button onClick={() => applyRichCommand("bold")}><strong>B</strong></button>
-                            <button onClick={() => applyRichCommand("italic")}><em>I</em></button>
-                            <button onClick={() => applyRichCommand("underline")}><u>U</u></button>
-                            <button onClick={() => applyRichCommand("justifyLeft")}>⬛</button>
-                            <button onClick={() => applyRichCommand("justifyCenter")}>≡</button>
-                            <button onClick={() => applyRichCommand("justifyRight")}>⬜</button>
-                            <button onClick={() => applyRichCommand("insertUnorderedList")}>• List</button>
-                            <button onClick={() => document.execCommand("insertOrderedList", false)}>1. List</button>
-                            <button onClick={() => applyRichCommand("createLink")}>🔗</button>
-                          </div>
-                          <div
-                            ref={richTextEditorRef}
-                            className="rich-editor-surface"
-                            contentEditable
-                            suppressContentEditableWarning
-                            onInput={(e) =>
-                              setEditorDraft((prev) => ({
-                                ...prev,
-                                profile: (e.target as HTMLDivElement).innerText,
-                              }))
-                            }
-                            dangerouslySetInnerHTML={{ __html: editorDraft.profile || "<p>Write your profile…</p>" }}
-                          />
-                        </>
+                        <RichTextEditor
+                          value={editorDraft.profile}
+                          placeholder="Write your profile…"
+                          debounceMs={350}
+                          onCommit={(profileHtml) =>
+                            setEditorDraft((prev) => ({
+                              ...prev,
+                              profile: profileHtml,
+                            }))
+                          }
+                        />
                       )}
 
                       {/* Experience */}

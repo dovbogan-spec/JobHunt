@@ -970,6 +970,12 @@ textarea {
   background: var(--bg-card);
 }
 
+
+.rich-editor-surface:empty::before {
+  content: attr(data-placeholder);
+  color: #8d8f98;
+}
+
 .structured-editor-list {
   display: grid;
   gap: 0.55rem;
