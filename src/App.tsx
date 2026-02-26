@@ -25,7 +25,7 @@ import { RichTextEditor } from "./components/RichTextEditor";
 import { DatePicker } from "./components/DatePicker";
 import { MultiEntrySectionOverview } from "./components/MultiEntrySectionOverview";
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
-import { buildResumeExportText, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
+import { buildResumeExportText, formatSkillLabel, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -2224,7 +2224,7 @@ function App() {
               </h4>
               <div>{getVisibleEntries(previewResume.skills).map((skill) => (
                 <div className="bullet-row" key={skill.id}>
-                  <p className="preview-text"><strong>{skill.skillName}</strong> ({skill.proficiency})</p>
+                  <p className="preview-text"><strong>{formatSkillLabel(skill.skillName, skill.proficiency)}</strong></p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(skill.content) }} />
                 </div>
               ))}</div>
