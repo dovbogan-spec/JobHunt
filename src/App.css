@@ -1028,6 +1028,17 @@ textarea {
   border-radius: var(--radius-card);
   padding: 0.35rem;
   background: var(--bg-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.multi-entry-overview-row.is-dragging {
+  opacity: 0.4;
+}
+
+.multi-entry-overview-row.drag-overlay {
+  box-shadow: 0 14px 28px rgba(15, 51, 38, 0.2);
+  opacity: 0.96;
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
 }
 
 .multi-entry-overview-main {
