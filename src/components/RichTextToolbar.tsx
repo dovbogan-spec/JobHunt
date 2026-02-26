@@ -58,7 +58,7 @@ export function RichTextToolbar({ activeCommands, onCommand }: RichTextToolbarPr
             title={action.title}
             aria-label={action.title}
             aria-pressed={isActive}
-            className={isActive ? "is-active" : ""}
+            className={`toolbar-command-button${isActive ? " is-active" : ""}`}
             onMouseDown={(event) => {
               event.preventDefault();
             }}
