@@ -25,6 +25,14 @@ export function getVisibleEntries<T extends VisibilityState>(entries: readonly T
   return entries.filter((entry) => isEntryVisible(entry));
 }
 
+export function formatSkillLabel(skillName: string, proficiency?: string | null): string {
+  const trimmedProficiency = (proficiency || "").trim();
+  if (!trimmedProficiency) {
+    return skillName;
+  }
+  return `${skillName} (${trimmedProficiency})`;
+}
+
 export function buildResumeExportText(input: {
   profile: string;
   skills: Array<{ skillName: string; proficiency: string } & VisibilityState>;
@@ -34,6 +42,7 @@ export function buildResumeExportText(input: {
     profileText: input.profile,
     skillsLine: getVisibleEntries(input.skills)
       .map((skill) => formatSkillWithLevel(skill))
+      .map((skill) => formatSkillLabel(skill.skillName, skill.proficiency))
       .join(", "),
     experienceBullets: getVisibleEntries(input.experience).map((item) => item.description),
   };
