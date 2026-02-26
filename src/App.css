@@ -992,6 +992,59 @@ textarea {
   gap: 0.55rem;
 }
 
+.multi-entry-overview-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.multi-entry-overview-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 0.35rem;
+  background: var(--bg-card);
+}
+
+.multi-entry-overview-main {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  display: grid;
+  gap: 0.12rem;
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+}
+
+.multi-entry-overview-title {
+  font-weight: 600;
+}
+
+.multi-entry-overview-subtitle,
+.multi-entry-overview-date {
+  font-size: 0.84rem;
+  color: #4f6760;
+}
+
+.multi-entry-overview-ordering {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.entry-overview-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
 .structured-editor-row {
   display: grid;
   gap: 0.4rem;
