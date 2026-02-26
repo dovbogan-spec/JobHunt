@@ -24,6 +24,7 @@ import { SettingsMenu } from "./components/SettingsMenu";
 import { RichTextEditor } from "./components/RichTextEditor";
 import { DatePicker } from "./components/DatePicker";
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
+import { buildResumeExportText, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -53,7 +54,8 @@ type ResumeExperienceItem = {
   endDate: string;
   location: string;
   description: string;
-  visible: boolean;
+  isHidden?: boolean;
+  visible?: boolean;
   order: number;
 };
 type EducationItem = {
@@ -63,10 +65,12 @@ type EducationItem = {
   startDate: string;
   endDate: string;
   description: string;
+  isHidden?: boolean;
+  visible?: boolean;
 };
-type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel; content: string };
-type ResumeLanguageEntry = { id: string; name: string; level: LanguageLevel; content: string };
-type ResumeInterestEntry = { id: string; name: string; content: string };
+type ResumeSkillEntry = { id: string; skillName: string; proficiency: ProficiencyLevel; content: string; isHidden?: boolean; visible?: boolean };
+type ResumeLanguageEntry = { id: string; name: string; level: LanguageLevel; content: string; isHidden?: boolean; visible?: boolean };
+type ResumeInterestEntry = { id: string; name: string; content: string; isHidden?: boolean; visible?: boolean };
 type SkillEntry = { id: string; name: string; level: string };
 type CustomFieldType =
   | "title"
@@ -524,7 +528,13 @@ function migrateResumeData(value: unknown): ResumeData {
     ? (source.selectedExperience as ExperienceItem[])
     : [];
   const experience = Array.isArray(source.experience)
-    ? (source.experience as ResumeExperienceItem[])
+    ? (source.experience as ResumeExperienceItem[]).map((item, index) =>
+        normalizeEntryVisibility({
+          ...item,
+          id: item.id || uuidv4(),
+          order: Number.isFinite(item.order) ? item.order : index,
+        }),
+      )
     : oldExperience.map((item, index) => ({
         id: item.id || uuidv4(),
         jobTitle: "",
@@ -533,6 +543,7 @@ function migrateResumeData(value: unknown): ResumeData {
         endDate: "",
         location: "",
         description: item.text || "",
+        isHidden: !(item.selected ?? true),
         visible: item.selected ?? true,
         order: index,
       }));
@@ -540,30 +551,30 @@ function migrateResumeData(value: unknown): ResumeData {
   const education = Array.isArray(source.education)
     ? (source.education as Array<EducationItem | string>).map((item) =>
         typeof item === "string"
-          ? {
+          ? normalizeEntryVisibility({
               id: uuidv4(),
               degree: item,
               institution: "",
               startDate: "",
               endDate: "",
               description: "",
-            }
-          : {
+            })
+          : normalizeEntryVisibility({
               id: item.id || uuidv4(),
               degree: item.degree || "",
               institution: item.institution || "",
               startDate: item.startDate || "",
               endDate: item.endDate || "",
               description: ensureRichHtml(String(item.description || "")),
-            },
+            }),
       )
     : [];
 
   const skills = Array.isArray(source.skills)
     ? (source.skills as Array<ResumeSkillEntry | string>).map((skill) =>
         typeof skill === "string"
-          ? { id: uuidv4(), skillName: skill, proficiency: "Advanced" as ProficiencyLevel, content: "" }
-          : { ...skill, id: skill.id || uuidv4(), content: ensureRichHtml(String(skill.content || "")) },
+          ? normalizeEntryVisibility({ id: uuidv4(), skillName: skill, proficiency: "Advanced" as ProficiencyLevel, content: "" })
+          : normalizeEntryVisibility({ ...skill, id: skill.id || uuidv4(), content: ensureRichHtml(String(skill.content || "")) }),
       )
     : Array.isArray(source.keySkills)
       ? (source.keySkills as string[]).map((skill) => ({
@@ -571,27 +582,27 @@ function migrateResumeData(value: unknown): ResumeData {
           skillName: skill,
           proficiency: "Advanced" as ProficiencyLevel,
           content: "",
-        }))
+        })).map((entry) => normalizeEntryVisibility(entry))
       : [];
 
   const languages = Array.isArray(source.languages)
     ? (source.languages as Array<ResumeLanguageEntry | string>).map((item) => {
         if (typeof item !== "string") {
           const legacyItem = item as ResumeLanguageEntry & { language?: string };
-          return {
+          return normalizeEntryVisibility({
             id: item.id || uuidv4(),
             name: legacyItem.name || legacyItem.language || "",
             level: normalizeLanguageLevel(item.level),
             content: ensureRichHtml(String(legacyItem.content || "")),
-          } satisfies ResumeLanguageEntry;
+          } satisfies ResumeLanguageEntry);
         }
         const [name, level] = item.split("—").map((part) => part.trim());
-        return {
+        return normalizeEntryVisibility({
           id: uuidv4(),
           name: name || item,
           level: normalizeLanguageLevel(level),
           content: "",
-        };
+        });
       })
     : [];
 
@@ -613,14 +624,14 @@ function migrateResumeData(value: unknown): ResumeData {
       ? source.interests
           .map((item) => {
             if (typeof item === "string") {
-              return { id: uuidv4(), name: item, content: "" } satisfies ResumeInterestEntry;
+              return normalizeEntryVisibility({ id: uuidv4(), name: item, content: "" } satisfies ResumeInterestEntry);
             }
             const legacyItem = item as ResumeInterestEntry;
-            return {
+            return normalizeEntryVisibility({
               id: legacyItem.id || uuidv4(),
               name: String(legacyItem.name || ""),
               content: ensureRichHtml(String(legacyItem.content || "")),
-            } satisfies ResumeInterestEntry;
+            } satisfies ResumeInterestEntry);
           })
           .filter((item) => item.name.trim().length > 0)
       : [],
@@ -1792,10 +1803,10 @@ function App() {
   function addSkillEntry() {
     setEditorDraft((prev) => ({
       ...prev,
-      skills: [...prev.skills, { id: uuidv4(), skillName: "", proficiency: "Intermediate", content: "" }],
+      skills: [...prev.skills, { id: uuidv4(), skillName: "", proficiency: "Intermediate", content: "", isHidden: false, visible: true }],
     }));
   }
-  function updateSkillEntry(id: string, field: keyof ResumeSkillEntry, value: string) {
+  function updateSkillEntry(id: string, field: "skillName" | "proficiency" | "content", value: string) {
     setEditorDraft((prev) => ({
       ...prev,
       skills: prev.skills.map((entry) =>
@@ -1925,6 +1936,16 @@ function App() {
     }));
   }
 
+
+  function toggleDraftEntryVisibility(key: "experience" | "education" | "skills" | "interests" | "languages", id: string) {
+    setEditorDraft((prev) => ({
+      ...prev,
+      [key]: (prev[key] as Array<{ id: string; isHidden?: boolean; visible?: boolean }>).map((item) =>
+        item.id === id ? normalizeEntryVisibility({ ...item, isHidden: isEntryVisible(item) }) : normalizeEntryVisibility(item),
+      ),
+    }));
+  }
+
   function updateExperienceDescription(itemId: string, index: number, descriptionHtml: string) {
     setEditorDraft((prev) => {
       const itemByIdIndex = prev.experience.findIndex((item) => item.id === itemId);
@@ -1944,7 +1965,7 @@ function App() {
       if (key === "education") {
         return {
           ...prev,
-          education: [...prev.education, { id: uuidv4(), degree: "", institution: "", startDate: "", endDate: "", description: "" }],
+          education: [...prev.education, { id: uuidv4(), degree: "", institution: "", startDate: "", endDate: "", description: "", isHidden: false, visible: true }],
         };
       }
       if (key === "languages") {
@@ -1952,10 +1973,10 @@ function App() {
         setPendingLanguageFocusId(languageId);
         return {
           ...prev,
-          languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL, content: "" }],
+          languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL, content: "", isHidden: false, visible: true }],
         };
       }
-      return { ...prev, interests: [...prev.interests, { id: uuidv4(), name: "", content: "" }] };
+      return { ...prev, interests: [...prev.interests, { id: uuidv4(), name: "", content: "", isHidden: false, visible: true }] };
     });
   }
   function toPlainText(value: string) {
@@ -1981,6 +2002,13 @@ function App() {
   function downloadResumePdf() {
     const doc = new jsPDF();
     let y = 20;
+    const exportText = buildResumeExportText({
+      profile: toPlainText(resume.profile),
+      skills: resume.skills.map((skill) => normalizeEntryVisibility(skill)),
+      experience: resume.experience
+        .sort((a, b) => a.order - b.order)
+        .map((item) => ({ ...normalizeEntryVisibility(item), description: toPlainText(item.description) })),
+    });
     doc.setFontSize(18);
     doc.text(resume.personalDetails.fullName || "Your Name", 14, y);
     y += 8;
@@ -1989,14 +2017,14 @@ function App() {
     y += 8;
     doc.text(`Target Role: ${resume.personalDetails.professionalTitle}`, 14, y);
     y += 8;
-    doc.text(toPlainText(resume.profile), 14, y, { maxWidth: 180 });
+    doc.text(exportText.profileText, 14, y, { maxWidth: 180 });
     y += 16;
-    doc.text(`Skills: ${resume.skills.map((skill) => `${skill.skillName} (${skill.proficiency})`).join(", ")}`, 14, y, {
+    doc.text(`Skills: ${exportText.skillsLine}`, 14, y, {
       maxWidth: 180,
     });
     y += 12;
-    resume.experience.forEach((item) => {
-      doc.text(`• ${toPlainText(item.description)}`, 14, y, { maxWidth: 180 });
+    exportText.experienceBullets.forEach((description) => {
+      doc.text(`• ${description}`, 14, y, { maxWidth: 180 });
       y += 7;
       if (y > 275) {
         doc.addPage();
@@ -2116,7 +2144,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              {previewResume.experience.filter((item) => item.visible).sort((a, b) => a.order - b.order).map((item) => (
+              {getVisibleEntries(previewResume.experience).sort((a, b) => a.order - b.order).map((item) => (
                 <div className="bullet-row experience-entry" key={item.id}>
                   <p className="preview-text"><strong>{item.jobTitle}</strong> · {item.employer}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
@@ -2141,7 +2169,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              {previewResume.education.map((item) => (
+              {getVisibleEntries(previewResume.education).map((item) => (
                 <div className="bullet-row" key={item.id}>
                   <p className="preview-text"><strong>{item.degree}</strong> · {item.institution}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate}</p>
@@ -2166,7 +2194,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <div>{previewResume.skills.map((skill) => (
+              <div>{getVisibleEntries(previewResume.skills).map((skill) => (
                 <div className="bullet-row" key={skill.id}>
                   <p className="preview-text"><strong>{skill.skillName}</strong> ({skill.proficiency})</p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(skill.content) }} />
@@ -2190,7 +2218,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <div>{previewResume.interests.map((interest) => (
+              <div>{getVisibleEntries(previewResume.interests).map((interest) => (
                 <div className="bullet-row" key={interest.id}>
                   <p className="preview-text"><strong>{interest.name}</strong></p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(interest.content) }} />
@@ -2214,7 +2242,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              <div>{previewResume.languages.map((language) => (
+              <div>{getVisibleEntries(previewResume.languages).map((language) => (
                 <div className="bullet-row" key={language.id}>
                   <p className="preview-text"><strong>{language.name}</strong> — {language.level}</p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(language.content) }} />
@@ -2723,7 +2751,7 @@ function App() {
                                 ...prev,
                                 experience: [
                                   ...prev.experience,
-                                  { id: uuidv4(), jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", visible: true, order: prev.experience.length },
+                                  { id: uuidv4(), jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", isHidden: false, visible: true, order: prev.experience.length },
                                 ],
                               }))
                             }
@@ -2761,6 +2789,15 @@ function App() {
                                 />
                               </div>
                               <button
+                                type="button"
+                                className="entry-visibility-btn"
+                                onClick={() => toggleDraftEntryVisibility("experience", item.id)}
+                                title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
+                                aria-label={isEntryVisible(item) ? "Hide experience entry" : "Show experience entry"}
+                              >
+                                {isEntryVisible(item) ? "👁" : "🙈"}
+                              </button>
+                              <button
                                 className="remove-field-btn"
                                 onClick={() =>
                                   setEditorDraft((prev) => ({
@@ -2790,6 +2827,7 @@ function App() {
                             <div key={entry.id} className="entry-box skill-entry-box">
                               <div className="entry-box-header">
                                 <span className="entry-box-type">Skill</span>
+                                <button type="button" className="entry-visibility-btn" onClick={() => toggleDraftEntryVisibility("skills", entry.id)} title={isEntryVisible(entry) ? "Hide entry" : "Show entry"} aria-label={isEntryVisible(entry) ? "Hide skill entry" : "Show skill entry"}>{isEntryVisible(entry) ? "👁" : "🙈"}</button>
                                 <button className="remove-entry-btn" onClick={() => removeSkillEntry(entry.id)} title="Remove">✕</button>
                               </div>
                               <input
@@ -2905,6 +2943,15 @@ function App() {
                                   />
                                 </div>
                                 <button
+                                  type="button"
+                                  className="entry-visibility-btn"
+                                  onClick={() => toggleDraftEntryVisibility("education", item.id)}
+                                  title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
+                                  aria-label={isEntryVisible(item) ? "Hide education entry" : "Show education entry"}
+                                >
+                                  {isEntryVisible(item) ? "👁" : "🙈"}
+                                </button>
+                                <button
                                   className="remove-field-btn"
                                   onClick={() =>
                                     setEditorDraft((prev) => ({
@@ -2988,6 +3035,15 @@ function App() {
                                     </select>
                                     <button
                                       type="button"
+                                      className="entry-visibility-btn"
+                                      onClick={() => toggleDraftEntryVisibility("languages", item.id)}
+                                      title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
+                                      aria-label={isEntryVisible(item) ? "Hide language entry" : "Show language entry"}
+                                    >
+                                      {isEntryVisible(item) ? "👁" : "🙈"}
+                                    </button>
+                                    <button
+                                      type="button"
                                       className="language-trash-btn"
                                       aria-label="Remove language"
                                       onClick={() => removeLanguage(index)}
@@ -3013,6 +3069,17 @@ function App() {
                                     }
                                   />
                                 </div>
+                                {key === "interests" && (
+                                  <button
+                                    type="button"
+                                    className="entry-visibility-btn"
+                                    onClick={() => toggleDraftEntryVisibility("interests", item.id)}
+                                    title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
+                                    aria-label={isEntryVisible(item) ? "Hide interest entry" : "Show interest entry"}
+                                  >
+                                    {isEntryVisible(item) ? "👁" : "🙈"}
+                                  </button>
+                                )}
                                 {key === "interests" && (
                                   <button
                                     className="remove-field-btn"

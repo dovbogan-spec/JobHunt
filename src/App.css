@@ -1798,6 +1798,21 @@ textarea {
   color: #3b6250;
 }
 
+
+.entry-visibility-btn {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border-radius: var(--radius-button);
+  line-height: 1;
+  background: #e8f5ee;
+  border: 1px solid #bfd9cb;
+}
+
+.entry-visibility-btn:hover {
+  background: #d8ecdf;
+}
+
 .remove-field-btn,
 .remove-entry-btn {
   min-height: 28px;
