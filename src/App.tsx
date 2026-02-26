@@ -2782,23 +2782,34 @@ function App() {
                                 <div className="structured-editor-row">
                                   <input value={item.jobTitle} placeholder="Job title" onChange={(e) => updateExperienceField(entryIndex, "jobTitle", e.target.value)} />
                                   <input value={item.employer} placeholder="Employer" onChange={(e) => updateExperienceField(entryIndex, "employer", e.target.value)} />
-                                  <DatePicker
-                                    mode="monthYear"
-                                    value={item.startDate}
-                                    placeholder="Start date"
-                                    ariaLabel="Experience start date"
-                                    onChange={(value) => updateExperienceField(entryIndex, "startDate", value)}
-                                  />
-                                  <DatePicker
-                                    mode="monthYear"
-                                    value={item.endDate}
-                                    placeholder="End date"
-                                    ariaLabel="Experience end date"
-                                    allowPresent
-                                    minDate={item.startDate || undefined}
-                                    onChange={(value) => updateExperienceField(entryIndex, "endDate", value)}
-                                  />
-                                  <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(entryIndex, "location", e.target.value)} />
+                                  <div className="date-fields-row entry-dates-row">
+                                    <label className="entry-field-with-label">
+                                      <span>Start date</span>
+                                      <DatePicker
+                                        mode="monthYear"
+                                        value={item.startDate}
+                                        placeholder="Start date"
+                                        ariaLabel="Experience start date"
+                                        onChange={(value) => updateExperienceField(entryIndex, "startDate", value)}
+                                      />
+                                    </label>
+                                    <label className="entry-field-with-label">
+                                      <span>End date</span>
+                                      <DatePicker
+                                        mode="monthYear"
+                                        value={item.endDate}
+                                        placeholder="End date"
+                                        ariaLabel="Experience end date"
+                                        allowPresent
+                                        minDate={item.startDate || undefined}
+                                        onChange={(value) => updateExperienceField(entryIndex, "endDate", value)}
+                                      />
+                                    </label>
+                                    <label className="entry-field-with-label">
+                                      <span>Location</span>
+                                      <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(entryIndex, "location", e.target.value)} />
+                                    </label>
+                                  </div>
                                   <div>
                                     <p className="preview-text">Description</p>
                                     <RichTextEditor
@@ -2973,22 +2984,30 @@ function App() {
                                 <div className="structured-editor-row">
                                   <input value={item.degree} placeholder="Degree" onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, degree: e.target.value } : entry) }))} />
                                   <input value={item.institution} placeholder="Institution" onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, institution: e.target.value } : entry) }))} />
-                                  <DatePicker
-                                    mode="monthYear"
-                                    value={item.startDate}
-                                    placeholder="Start date"
-                                    ariaLabel="Education start date"
-                                    onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, startDate: value } : entry) }))}
-                                  />
-                                  <DatePicker
-                                    mode="monthYear"
-                                    value={item.endDate}
-                                    placeholder="End date"
-                                    ariaLabel="Education end date"
-                                    allowPresent
-                                    minDate={item.startDate || undefined}
-                                    onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, endDate: value } : entry) }))}
-                                  />
+                                  <div className="date-fields-row entry-dates-row">
+                                    <label className="entry-field-with-label">
+                                      <span>Start date</span>
+                                      <DatePicker
+                                        mode="monthYear"
+                                        value={item.startDate}
+                                        placeholder="Start date"
+                                        ariaLabel="Education start date"
+                                        onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, startDate: value } : entry) }))}
+                                      />
+                                    </label>
+                                    <label className="entry-field-with-label">
+                                      <span>End date</span>
+                                      <DatePicker
+                                        mode="monthYear"
+                                        value={item.endDate}
+                                        placeholder="End date"
+                                        ariaLabel="Education end date"
+                                        allowPresent
+                                        minDate={item.startDate || undefined}
+                                        onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, endDate: value } : entry) }))}
+                                      />
+                                    </label>
+                                  </div>
                                   <div>
                                     <p className="preview-text">Details</p>
                                     <RichTextEditor
