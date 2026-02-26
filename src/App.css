@@ -957,7 +957,8 @@ textarea {
   background: var(--bg-panel);
 }
 
-.editor-toolbar-strip button {
+.editor-toolbar-strip button,
+.editor-toolbar-strip .toolbar-command-button {
   min-height: 34px;
   min-width: 34px;
   width: 34px;
@@ -967,10 +968,28 @@ textarea {
   padding: 0;
 }
 
-.editor-toolbar-strip button.is-active {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-  color: #fff;
+.editor-toolbar-strip button.is-active,
+.editor-toolbar-strip .toolbar-command-button.is-active {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  color: var(--primary);
+}
+
+.editor-toolbar-strip button:hover,
+.editor-toolbar-strip .toolbar-command-button:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--bg-card));
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+  color: var(--primary-active);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.editor-toolbar-strip button:focus-visible,
+.editor-toolbar-strip .toolbar-command-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, var(--bg-card));
+  color: var(--primary-active);
 }
 
 .rich-editor-surface {
