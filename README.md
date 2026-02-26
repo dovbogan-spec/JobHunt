@@ -32,6 +32,12 @@ npm install
 npm run dev
 ```
 
+
+## Date input UX
+
+- All resume date fields (Experience/Education) now use a shared mini-calendar `<DatePicker />` component with month-year selection and optional `Present` for end dates.
+- Date values are normalized to `MM/YYYY` and range constrained via shared utilities in `src/utils/datePicker.ts`.
+
 ## Checks and tests
 
 ```bash
