@@ -23,6 +23,7 @@ import { PreviewModal } from "./components/PreviewModal";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { RichTextEditor } from "./components/RichTextEditor";
 import { DatePicker } from "./components/DatePicker";
+import { MultiEntrySectionOverview } from "./components/MultiEntrySectionOverview";
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
 import "./App.css";
 
@@ -792,6 +793,7 @@ function App() {
       initialSections[0].id,
   );
   const [savedSectionId, setSavedSectionId] = useState<string | null>(null);
+  const [activeMultiEntryEditors, setActiveMultiEntryEditors] = useState<Record<string, string | null>>({});
   const [requirementChecks, setRequirementChecks] = useState<
     RequirementCheck[]
   >([]);
@@ -839,9 +841,35 @@ function App() {
   const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
   const deleteCancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
+  const overviewScrollPositionsRef = useRef<Record<string, number>>({});
+  const overviewContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previewResume = editMode ? editorDraft : resume;
   const activeSection = sections.find((section) => section.id === activeSectionId);
   const sectionDragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const activeExperienceEntryId = activeMultiEntryEditors.experience ?? null;
+  const activeEducationEntryId = activeMultiEntryEditors.education ?? null;
+  const activeLanguageEntryId = activeMultiEntryEditors.languages ?? null;
+
+  function getDateSummary(startDate: string, endDate: string) {
+    if (!startDate && !endDate) return "";
+    return `${startDate || "Start date"} - ${endDate || "Present"}`;
+  }
+
+  function openMultiEntryEditor(sectionId: string, rowId: string) {
+    const container = overviewContainerRefs.current[sectionId];
+    if (container) overviewScrollPositionsRef.current[sectionId] = container.scrollTop;
+    setActiveMultiEntryEditors((prev) => ({ ...prev, [sectionId]: rowId }));
+  }
+
+  function closeMultiEntryEditor(sectionId: string) {
+    setActiveMultiEntryEditors((prev) => ({ ...prev, [sectionId]: null }));
+    const scrollTop = overviewScrollPositionsRef.current[sectionId] ?? 0;
+    window.requestAnimationFrame(() => {
+      const container = overviewContainerRefs.current[sectionId];
+      if (container) container.scrollTop = scrollTop;
+    });
+  }
 
   function handleSectionDragStart(event: DragStartEvent) {
     setActiveSectionDragId(String(event.active.id));
@@ -2715,69 +2743,87 @@ function App() {
 
                       {/* Experience */}
                       {activeSectionId === "experience" && (
-                        <div className="structured-editor-list">
-                          <button
-                            className="small-action add-entry-top-btn"
-                            onClick={() =>
+                        activeExperienceEntryId ? (
+                          (() => {
+                            const entryIndex = editorDraft.experience.findIndex((item) => item.id === activeExperienceEntryId);
+                            if (entryIndex < 0) return null;
+                            const item = editorDraft.experience[entryIndex];
+                            return (
+                              <div className="structured-editor-list">
+                                <button className="small-action" onClick={() => closeMultiEntryEditor("experience")}>← Back to list</button>
+                                <div className="structured-editor-row">
+                                  <input value={item.jobTitle} placeholder="Job title" onChange={(e) => updateExperienceField(entryIndex, "jobTitle", e.target.value)} />
+                                  <input value={item.employer} placeholder="Employer" onChange={(e) => updateExperienceField(entryIndex, "employer", e.target.value)} />
+                                  <DatePicker
+                                    mode="monthYear"
+                                    value={item.startDate}
+                                    placeholder="Start date"
+                                    ariaLabel="Experience start date"
+                                    onChange={(value) => updateExperienceField(entryIndex, "startDate", value)}
+                                  />
+                                  <DatePicker
+                                    mode="monthYear"
+                                    value={item.endDate}
+                                    placeholder="End date"
+                                    ariaLabel="Experience end date"
+                                    allowPresent
+                                    minDate={item.startDate || undefined}
+                                    onChange={(value) => updateExperienceField(entryIndex, "endDate", value)}
+                                  />
+                                  <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(entryIndex, "location", e.target.value)} />
+                                  <div>
+                                    <p className="preview-text">Description</p>
+                                    <RichTextEditor
+                                      value={item.description}
+                                      placeholder="Impact description"
+                                      debounceMs={350}
+                                      onCommit={(descriptionHtml) => updateExperienceDescription(item.id, entryIndex, descriptionHtml)}
+                                    />
+                                  </div>
+                                  <button
+                                    className="remove-field-btn"
+                                    onClick={() => {
+                                      setEditorDraft((prev) => ({ ...prev, experience: prev.experience.filter((entry) => entry.id !== item.id) }));
+                                      closeMultiEntryEditor("experience");
+                                    }}
+                                    title="Remove"
+                                  >
+                                    −
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <MultiEntrySectionOverview
+                            rows={editorDraft.experience.map((item) => ({
+                              id: item.id,
+                              title: item.jobTitle || "Untitled role",
+                              subtitle: item.employer || item.location || "",
+                              dateSummary: getDateSummary(item.startDate, item.endDate),
+                              visible: item.visible,
+                            }))}
+                            addLabel="+ Add experience"
+                            emptyMessage="No experience entries yet. Add your work history above."
+                            supportsOrdering
+                            onMoveRow={(from, to) =>
+                              setEditorDraft((prev) => ({ ...prev, experience: moveArrayItem(prev.experience, from, to).map((entry, index) => ({ ...entry, order: index })) }))
+                            }
+                            onAddEntry={() => {
+                              const entryId = uuidv4();
                               setEditorDraft((prev) => ({
                                 ...prev,
-                                experience: [
-                                  ...prev.experience,
-                                  { id: uuidv4(), jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", visible: true, order: prev.experience.length },
-                                ],
-                              }))
-                            }
-                          >
-                            + Add experience
-                          </button>
-                          {editorDraft.experience.map((item, index) => (
-                            <div className="structured-editor-row" key={item.id}>
-                              <input value={item.jobTitle} placeholder="Job title" onChange={(e) => updateExperienceField(index, "jobTitle", e.target.value)} />
-                              <input value={item.employer} placeholder="Employer" onChange={(e) => updateExperienceField(index, "employer", e.target.value)} />
-                              <DatePicker
-                                mode="monthYear"
-                                value={item.startDate}
-                                placeholder="Start date"
-                                ariaLabel="Experience start date"
-                                onChange={(value) => updateExperienceField(index, "startDate", value)}
-                              />
-                              <DatePicker
-                                mode="monthYear"
-                                value={item.endDate}
-                                placeholder="End date"
-                                ariaLabel="Experience end date"
-                                allowPresent
-                                minDate={item.startDate || undefined}
-                                onChange={(value) => updateExperienceField(index, "endDate", value)}
-                              />
-                              <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(index, "location", e.target.value)} />
-                              <div>
-                                <p className="preview-text">Description</p>
-                                <RichTextEditor
-                                  value={item.description}
-                                  placeholder="Impact description"
-                                  debounceMs={350}
-                                  onCommit={(descriptionHtml) => updateExperienceDescription(item.id, index, descriptionHtml)}
-                                />
-                              </div>
-                              <button
-                                className="remove-field-btn"
-                                onClick={() =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    experience: prev.experience.filter((_, i) => i !== index),
-                                  }))
-                                }
-                                title="Remove"
-                              >
-                                −
-                              </button>
-                            </div>
-                          ))}
-                          {editorDraft.experience.length === 0 && (
-                            <p className="editor-empty-state">No experience entries yet. Add your work history above.</p>
-                          )}
-                        </div>
+                                experience: [...prev.experience, { id: entryId, jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", visible: true, order: prev.experience.length }],
+                              }));
+                              openMultiEntryEditor("experience", entryId);
+                            }}
+                            onSelectRow={(rowId) => openMultiEntryEditor("experience", rowId)}
+                            onToggleVisibility={(rowId) => toggleExperience(rowId)}
+                            containerRef={(node) => {
+                              overviewContainerRefs.current.experience = node;
+                            }}
+                          />
+                        )
                       )}
 
                       {/* Skills */}
@@ -2821,222 +2867,188 @@ function App() {
 
                       {/* Education */}
                       {activeSectionId === "education" && (
-                        <div className="structured-editor-list">
-                          {editorDraft.education.map((item, index) => {
-                            const listId = "education-entries";
-                            const itemId = item.id;
-                            const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
-                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
+                        activeEducationEntryId ? (
+                          (() => {
+                            const entryIndex = editorDraft.education.findIndex((item) => item.id === activeEducationEntryId);
+                            if (entryIndex < 0) return null;
+                            const item = editorDraft.education[entryIndex];
                             return (
-                              <div className={`structured-editor-row reorderable-item ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
-                                draggable
-                                tabIndex={0}
-                                aria-grabbed={isGrabbed}
-                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
-                                onKeyDown={(event) => handleReorderKeyDown(event, {
-                                  listId,
-                                  itemId,
-                                  index,
-                                  total: editorDraft.education.length,
-                                  label: `Education entry ${index + 1}`,
-                                  onMove: (from, to) => moveDraftListEntries("education", from, to),
-                                })}
-                                onDragStart={() => setDragState({ listId, itemId })}
-                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId }); }}
-                                onDragLeave={() => setDropTarget(null)}
-                                onDrop={() => {
-                                  if (dragState?.listId === listId) {
-                                    const fromIndex = editorDraft.education.findIndex((value) => value.id === dragState.itemId);
-                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries("education", fromIndex, index);
-                                  }
-                                  setDragState(null);
-                                  setDropTarget(null);
-                                }}
-                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
-                              >
-                                <input
-                                  value={item.degree}
-                                  placeholder="Degree"
-                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, degree: e.target.value } : entry) }))}
-                                />
-                                <input
-                                  value={item.institution}
-                                  placeholder="Institution"
-                                  onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === index ? { ...entry, institution: e.target.value } : entry) }))}
-                                />
-                                <DatePicker
-                                  mode="monthYear"
-                                  value={item.startDate}
-                                  placeholder="Start date"
-                                  ariaLabel="Education start date"
-                                  onChange={(value) =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      education: prev.education.map((entry, i) => i === index ? { ...entry, startDate: value } : entry),
-                                    }))
-                                  }
-                                />
-                                <DatePicker
-                                  mode="monthYear"
-                                  value={item.endDate}
-                                  placeholder="End date"
-                                  ariaLabel="Education end date"
-                                  allowPresent
-                                  minDate={item.startDate || undefined}
-                                  onChange={(value) =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      education: prev.education.map((entry, i) => i === index ? { ...entry, endDate: value } : entry),
-                                    }))
-                                  }
-                                />
-                                <div>
-                                  <p className="preview-text">Details</p>
-                                  <RichTextEditor
-                                    value={item.description}
-                                    placeholder="Highlights, coursework, honors"
-                                    debounceMs={350}
-                                    onCommit={(descriptionHtml) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        education: prev.education.map((entry, i) => i === index ? { ...entry, description: descriptionHtml } : entry),
-                                      }))
-                                    }
+                              <div className="structured-editor-list">
+                                <button className="small-action" onClick={() => closeMultiEntryEditor("education")}>← Back to list</button>
+                                <div className="structured-editor-row">
+                                  <input value={item.degree} placeholder="Degree" onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, degree: e.target.value } : entry) }))} />
+                                  <input value={item.institution} placeholder="Institution" onChange={(e) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, institution: e.target.value } : entry) }))} />
+                                  <DatePicker
+                                    mode="monthYear"
+                                    value={item.startDate}
+                                    placeholder="Start date"
+                                    ariaLabel="Education start date"
+                                    onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, startDate: value } : entry) }))}
                                   />
-                                </div>
-                                <button
-                                  className="remove-field-btn"
-                                  onClick={() =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      education: prev.education.filter((_, i) => i !== index),
-                                    }))
-                                  }
-                                  title="Remove"
-                                >
-                                  −
-                                </button>
-                              </div>
-                            );
-                          })}
-                          <button
-                            className="small-action"
-                            onClick={() => appendListField("education")}
-                          >
-                            + Add item
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Interests / Languages */}
-                      {(activeSectionId === "interests" || activeSectionId === "languages") && (
-                        <div className="structured-editor-list">
-                          {(activeSectionId === "interests" ? editorDraft.interests : editorDraft.languages).map((item, index) => {
-                            const key = activeSectionId === "interests" ? "interests" : "languages";
-                            const listId = `${key}-entries`;
-                            const itemId = `${key}-${index}`;
-                            const isGrabbed = grabState?.listId === listId && grabState.itemId === itemId;
-                            const isDropTarget = dropTarget?.listId === listId && dropTarget.itemId === itemId;
-                            return (
-                              <div className={`structured-editor-row reorderable-item ${key === "languages" ? "language-row" : ""} ${isGrabbed ? "is-grabbed" : ""} ${isDropTarget ? "drag-over" : ""}`} key={itemId}
-                                draggable
-                                tabIndex={0}
-                                aria-grabbed={isGrabbed}
-                                aria-dropeffect={grabState?.listId === listId ? "move" : "none"}
-                                onKeyDown={(event) => handleReorderKeyDown(event, {
-                                  listId,
-                                  itemId,
-                                  index,
-                                  total: (editorDraft[key] as Array<unknown>).length,
-                                  label: `${key} entry ${index + 1}`,
-                                  onMove: (from, to) => moveDraftListEntries(key === "languages" ? "languages" : "interests", from, to),
-                                })}
-                                onDragStart={() => setDragState({ listId, itemId })}
-                                onDragOver={(e) => { e.preventDefault(); setDropTarget({ listId, itemId }); }}
-                                onDragLeave={() => setDropTarget(null)}
-                                onDrop={() => {
-                                  if (dragState?.listId === listId) {
-                                    const fromIndex = (editorDraft[key] as Array<unknown>).findIndex((_, i) => `${key}-${i}` === dragState.itemId);
-                                    if (fromIndex >= 0 && fromIndex !== index) moveDraftListEntries(key === "languages" ? "languages" : "interests", fromIndex, index);
-                                  }
-                                  setDragState(null);
-                                  setDropTarget(null);
-                                }}
-                                onDragEnd={() => { setDragState(null); setDropTarget(null); }}
-                              >
-                                <input
-                                  value={item.name}
-                                  data-language-name-id={item.id}
-                                  placeholder={key === "languages" ? "Language (e.g., English)" : ""}
-                                  onChange={(e) =>
-                                    updateInterestOrLanguageField(
-                                      activeSectionId === "interests" ? "interests" : "languages",
-                                      index,
-                                      e.target.value,
-                                    )
-                                  }
-                                />
-                                {key === "languages" && (
-                                  <>
-                                    <select
-                                      value={(item as ResumeLanguageEntry).level}
-                                      onChange={(event) => updateLanguageLevel(index, event.target.value as LanguageLevel)}
-                                    >
-                                      {LANGUAGE_LEVEL_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.shortLabel}</option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      className="language-trash-btn"
-                                      aria-label="Remove language"
-                                      onClick={() => removeLanguage(index)}
-                                      title="Remove language"
-                                    >
-                                      🗑
-                                    </button>
-                                  </>
-                                )}
-                                <div>
-                                  <p className="preview-text">Details</p>
-                                  <RichTextEditor
-                                    value={item.content}
-                                    placeholder={key === "languages" ? "Language profile" : "Interest details"}
-                                    debounceMs={350}
-                                    onCommit={(contentHtml) =>
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        [key]: (prev[key] as Array<{ id: string; content: string }>).map((entry, itemIndex) =>
-                                          itemIndex === index ? { ...entry, content: contentHtml } : entry,
-                                        ),
-                                      }))
-                                    }
+                                  <DatePicker
+                                    mode="monthYear"
+                                    value={item.endDate}
+                                    placeholder="End date"
+                                    ariaLabel="Education end date"
+                                    allowPresent
+                                    minDate={item.startDate || undefined}
+                                    onChange={(value) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, endDate: value } : entry) }))}
                                   />
-                                </div>
-                                {key === "interests" && (
+                                  <div>
+                                    <p className="preview-text">Details</p>
+                                    <RichTextEditor
+                                      value={item.description}
+                                      placeholder="Highlights, coursework, honors"
+                                      debounceMs={350}
+                                      onCommit={(descriptionHtml) => setEditorDraft((prev) => ({ ...prev, education: prev.education.map((entry, i) => i === entryIndex ? { ...entry, description: descriptionHtml } : entry) }))}
+                                    />
+                                  </div>
                                   <button
                                     className="remove-field-btn"
                                     onClick={() => {
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        interests: prev.interests.filter((_, i) => i !== index),
-                                      }));
+                                      setEditorDraft((prev) => ({ ...prev, education: prev.education.filter((entry) => entry.id !== item.id) }));
+                                      closeMultiEntryEditor("education");
                                     }}
                                     title="Remove"
                                   >
                                     −
                                   </button>
-                                )}
+                                </div>
                               </div>
                             );
-                          })}
-                          <button
-                            className="small-action"
-                            onClick={() => appendListField(activeSectionId === "interests" ? "interests" : "languages")}
-                          >
-                            + Add item
-                          </button>
+                          })()
+                        ) : (
+                          <MultiEntrySectionOverview
+                            rows={editorDraft.education.map((item) => ({
+                              id: item.id,
+                              title: item.degree || "Untitled education",
+                              subtitle: item.institution || "",
+                              dateSummary: getDateSummary(item.startDate, item.endDate),
+                            }))}
+                            addLabel="+ Add education"
+                            emptyMessage="No education entries yet."
+                            supportsOrdering
+                            onMoveRow={(from, to) => moveDraftListEntries("education", from, to)}
+                            onAddEntry={() => {
+                              const entryId = uuidv4();
+                              setEditorDraft((prev) => ({
+                                ...prev,
+                                education: [...prev.education, { id: entryId, degree: "", institution: "", startDate: "", endDate: "", description: "" }],
+                              }));
+                              openMultiEntryEditor("education", entryId);
+                            }}
+                            onSelectRow={(rowId) => openMultiEntryEditor("education", rowId)}
+                            containerRef={(node) => {
+                              overviewContainerRefs.current.education = node;
+                            }}
+                          />
+                        )
+                      )}
+
+                      {/* Interests */}
+                      {activeSectionId === "interests" && (
+                        <div className="structured-editor-list">
+                          {editorDraft.interests.map((item, index) => (
+                            <div className="structured-editor-row" key={item.id}>
+                              <input
+                                value={item.name}
+                                onChange={(e) => updateInterestOrLanguageField("interests", index, e.target.value)}
+                              />
+                              <div>
+                                <p className="preview-text">Details</p>
+                                <RichTextEditor
+                                  value={item.content}
+                                  placeholder="Interest details"
+                                  debounceMs={350}
+                                  onCommit={(contentHtml) => setEditorDraft((prev) => ({ ...prev, interests: prev.interests.map((entry, itemIndex) => itemIndex === index ? { ...entry, content: contentHtml } : entry) }))}
+                                />
+                              </div>
+                              <button
+                                className="remove-field-btn"
+                                onClick={() => setEditorDraft((prev) => ({ ...prev, interests: prev.interests.filter((_, i) => i !== index) }))}
+                                title="Remove"
+                              >
+                                −
+                              </button>
+                            </div>
+                          ))}
+                          <button className="small-action" onClick={() => appendListField("interests")}>+ Add item</button>
                         </div>
+                      )}
+
+                      {/* Languages */}
+                      {activeSectionId === "languages" && (
+                        activeLanguageEntryId ? (
+                          (() => {
+                            const entryIndex = editorDraft.languages.findIndex((item) => item.id === activeLanguageEntryId);
+                            if (entryIndex < 0) return null;
+                            const item = editorDraft.languages[entryIndex];
+                            return (
+                              <div className="structured-editor-list">
+                                <button className="small-action" onClick={() => closeMultiEntryEditor("languages")}>← Back to list</button>
+                                <div className="structured-editor-row language-row">
+                                  <input
+                                    value={item.name}
+                                    data-language-name-id={item.id}
+                                    placeholder="Language (e.g., English)"
+                                    onChange={(e) => updateInterestOrLanguageField("languages", entryIndex, e.target.value)}
+                                  />
+                                  <select
+                                    value={item.level}
+                                    onChange={(event) => updateLanguageLevel(entryIndex, event.target.value as LanguageLevel)}
+                                  >
+                                    {LANGUAGE_LEVEL_OPTIONS.map((option) => (
+                                      <option key={option.value} value={option.value}>{option.shortLabel}</option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="language-trash-btn"
+                                    aria-label="Remove language"
+                                    onClick={() => {
+                                      removeLanguage(entryIndex);
+                                      closeMultiEntryEditor("languages");
+                                    }}
+                                    title="Remove language"
+                                  >
+                                    🗑
+                                  </button>
+                                </div>
+                                <div>
+                                  <p className="preview-text">Details</p>
+                                  <RichTextEditor
+                                    value={item.content}
+                                    placeholder="Language profile"
+                                    debounceMs={350}
+                                    onCommit={(contentHtml) => setEditorDraft((prev) => ({ ...prev, languages: prev.languages.map((entry, itemIndex) => itemIndex === entryIndex ? { ...entry, content: contentHtml } : entry) }))}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <MultiEntrySectionOverview
+                            rows={editorDraft.languages.map((item) => ({
+                              id: item.id,
+                              title: item.name || "Untitled language",
+                              subtitle: item.level,
+                            }))}
+                            addLabel="+ Add language"
+                            emptyMessage="No languages added yet."
+                            supportsOrdering
+                            onMoveRow={(from, to) => moveDraftListEntries("languages", from, to)}
+                            onAddEntry={() => {
+                              const languageId = uuidv4();
+                              setEditorDraft((prev) => ({ ...prev, languages: [...prev.languages, { id: languageId, name: "", level: DEFAULT_LANGUAGE_LEVEL, content: "" }] }));
+                              setPendingLanguageFocusId(languageId);
+                              openMultiEntryEditor("languages", languageId);
+                            }}
+                            onSelectRow={(rowId) => openMultiEntryEditor("languages", rowId)}
+                            containerRef={(node) => {
+                              overviewContainerRefs.current.languages = node;
+                            }}
+                          />
+                        )
                       )}
 
                       {/* Custom sections */}
