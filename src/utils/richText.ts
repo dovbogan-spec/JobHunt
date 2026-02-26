@@ -74,6 +74,89 @@ export function sanitizeRichHtml(value: string): string {
   };
 
   Array.from(root.childNodes).forEach(walker);
+
+  const EMPTY_TAGS = new Set(["p", "div", "span", "li"]);
+  const BLOCK_TAGS = new Set(["p", "div", "li"]);
+
+  const isNodeEmpty = (node: Node): boolean => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = (node.textContent || "").replace(/\u00a0|&nbsp;/gi, " ").trim();
+      return text.length === 0;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return true;
+
+    const element = node as HTMLElement;
+    const tag = element.tagName.toLowerCase();
+    if (tag === "br") return true;
+    if (!EMPTY_TAGS.has(tag)) {
+      return Array.from(element.childNodes).every(isNodeEmpty);
+    }
+    return Array.from(element.childNodes).every(isNodeEmpty);
+  };
+
+  const cleanupNode = (node: Node) => {
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const element = node as HTMLElement;
+
+    Array.from(element.children).forEach((child) => cleanupNode(child));
+
+    if (
+      element.tagName.toLowerCase() === "li" &&
+      element.children.length === 1 &&
+      element.firstElementChild?.tagName.toLowerCase() === "p"
+    ) {
+      const paragraph = element.firstElementChild;
+      if (paragraph) {
+        element.replaceChildren(...Array.from(paragraph.childNodes));
+      }
+    }
+
+    const tag = element.tagName.toLowerCase();
+    if (EMPTY_TAGS.has(tag) && isNodeEmpty(element)) {
+      element.remove();
+      return;
+    }
+
+    if (tag === "ul" || tag === "ol") {
+      Array.from(element.children).forEach((child) => {
+        if (child.tagName.toLowerCase() === "li" && isNodeEmpty(child)) {
+          child.remove();
+        }
+      });
+      if (element.children.length === 0) {
+        element.remove();
+      }
+    }
+  };
+
+  const collapseBlankBlocks = (container: Element) => {
+    let previousWasBlankBlock = false;
+    Array.from(container.childNodes).forEach((child) => {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        collapseBlankBlocks(child as Element);
+      }
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const element = child as HTMLElement;
+        const tag = element.tagName.toLowerCase();
+        const isBlankBlock = BLOCK_TAGS.has(tag) && isNodeEmpty(element);
+        if (isBlankBlock) {
+          if (previousWasBlankBlock || container.tagName.toLowerCase() === "li") {
+            element.remove();
+            return;
+          }
+          previousWasBlankBlock = true;
+          return;
+        }
+      } else if (child.nodeType === Node.TEXT_NODE && (child.textContent || "").trim() === "") {
+        return;
+      }
+      previousWasBlankBlock = false;
+    });
+  };
+
+  cleanupNode(root);
+  collapseBlankBlocks(root);
+
   return root.innerHTML;
 }
 
