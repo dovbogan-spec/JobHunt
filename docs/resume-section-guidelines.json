@@ -1,0 +1,455 @@
+{
+  "version": "2026-02-01",
+  "description": "ATS-optimized resume section guidelines for deterministic resume generation. Used by AI agents to populate resume fields given a job description, candidate data, and keyword sources.",
+  "section_order": [
+    "Personal_information",
+    "Professional_summary",
+    "Skills",
+    "Work_experience",
+    "Education",
+    "Languages"
+  ],
+  "sections": {
+    "Personal_information": {
+      "section_label": "Personal Information",
+      "order": 1,
+      "description": "Contact details and identity fields. Must appear at the top of the resume text block before any other section.",
+      "fields": {
+        "Contact_full_name": {
+          "type": "string",
+          "required": true,
+          "cv_field_ref": "personal.full_name",
+          "format": "Full legal or preferred name",
+          "max_length": 120,
+          "example": "Jane Doe"
+        },
+        "Contact_preferred_job_title": {
+          "type": "string",
+          "required": false,
+          "cv_field_ref": "personal.professional_title",
+          "format": "Target job title matching the job description when available",
+          "max_length": 120,
+          "example": "Senior Software Engineer"
+        },
+        "Contact_email": {
+          "type": "string",
+          "required": false,
+          "cv_field_ref": "personal.email",
+          "format": "Valid email address (user@domain.tld)",
+          "validation": { "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+          "example": "jane.doe@email.com"
+        },
+        "Contact_phone": {
+          "type": "string",
+          "required": false,
+          "format": "International format with country code",
+          "example": "+1-555-123-4567"
+        },
+        "Contact_city": {
+          "type": "string",
+          "required": false,
+          "format": "City, Region (do not include full street address)",
+          "example": "San Francisco, CA"
+        },
+        "Contact_linkedin_url": {
+          "type": "string",
+          "required": false,
+          "format": "Full URL to LinkedIn profile",
+          "example": "https://linkedin.com/in/janedoe"
+        },
+        "Contact_portfolio_url": {
+          "type": "string",
+          "required": false,
+          "format": "Full URL to portfolio or personal website",
+          "example": "https://janedoe.dev"
+        }
+      },
+      "rules": [
+        "Must appear at the top of the resume text block, before any other section.",
+        "No graphics or icons around personal information.",
+        "Do not include full street address; city and region are sufficient.",
+        "Use plain text only — no hyperlinks that rely on styling."
+      ],
+      "keyword_rules": [
+        "Do not insert job description keywords into the personal information section."
+      ],
+      "formatting_constraints": [
+        "Single-column layout.",
+        "Plain text, no tables or columns.",
+        "Name may be slightly larger font but must remain parseable text."
+      ],
+      "prioritization_logic": [
+        "Always include Contact_full_name.",
+        "Include Contact_email and Contact_phone when available.",
+        "Include Contact_city when relevant to job location requirements.",
+        "Include Contact_preferred_job_title when it matches the target role.",
+        "Include Contact_linkedin_url when available.",
+        "Include Contact_portfolio_url only when relevant to the role."
+      ]
+    },
+
+    "Professional_summary": {
+      "section_label": "Professional Summary",
+      "order": 2,
+      "description": "A concise career snapshot tailored to the target role. Must be 2–4 sentences or bullet points.",
+      "fields": {
+        "Professional_summary_text": {
+          "type": "string",
+          "required": true,
+          "cv_field_ref": "profile.summary",
+          "format": "2–4 sentences or bullet points describing the candidate's career snapshot",
+          "max_length": 2000,
+          "example": "Results-driven Senior Software Engineer with 8+ years of experience building scalable web applications. Expert in React, Node.js, and cloud architecture with a track record of reducing deployment times by 40%. Passionate about delivering high-quality, user-centric solutions in fast-paced environments."
+        }
+      },
+      "rules": [
+        "Must be 2–4 sentences or bullet points.",
+        "Must be tailored using job description phrases (job title, at least 3 core skills).",
+        "Must use action verbs and measurable value statements where possible.",
+        "First sentence: role + experience level.",
+        "Second sentence: top skills matching the job posting.",
+        "Third sentence: value or impact the candidate delivers."
+      ],
+      "keyword_rules": [
+        "Extract keywords from the job description and include them naturally in the summary.",
+        "Place the most relevant job title early in the summary.",
+        "Include at least 3 core skills from the job description."
+      ],
+      "formatting_constraints": [
+        "Plain paragraph or simple bullet points.",
+        "No headers, footers, or graphics within the summary.",
+        "Keep under 2000 characters."
+      ],
+      "prioritization_logic": [
+        "Prioritize keywords from must-have requirements over nice-to-haves.",
+        "Lead with the candidate's strongest alignment to the target role.",
+        "If measurable results exist, include the most impactful one."
+      ]
+    },
+
+    "Skills": {
+      "section_label": "Skills",
+      "order": 3,
+      "description": "A structured list of competencies divided into hard skills and soft skills.",
+      "fields": {
+        "Hard_skills": {
+          "type": "array",
+          "required": true,
+          "cv_field_ref": "skills.items",
+          "format": "Array of technology, tool, and methodology names from the job description",
+          "item_format": {
+            "name": { "type": "string", "required": true, "example": "React" },
+            "aliases": { "type": "array", "required": false, "example": ["ReactJS", "React.js"] }
+          },
+          "example": ["Python", "SQL", "AWS (Amazon Web Services)", "Docker", "CI/CD", "REST APIs"]
+        },
+        "Soft_skills": {
+          "type": "array",
+          "required": false,
+          "format": "Array of interpersonal and contextual skill names; do not overemphasize",
+          "item_format": {
+            "name": { "type": "string", "required": true, "example": "Team Leadership" }
+          },
+          "example": ["Team Leadership", "Cross-functional Collaboration", "Agile Methodology"]
+        }
+      },
+      "rules": [
+        "Format as a bullet list or comma-separated list of competencies.",
+        "Divide into Hard_skills (technologies, tools, methodologies) and Soft_skills (contextual, not overemphasized).",
+        "Minimum 5 highest-priority skills matching the job posting.",
+        "Include synonyms and acronyms where applicable (e.g., 'ERP (Enterprise Resource Planning)').",
+        "Every listed skill must appear in the job description or be evidenced in the candidate profile.",
+        "Do not fabricate skills the candidate does not possess."
+      ],
+      "keyword_rules": [
+        "Every listed skill must appear in the job description or candidate profile.",
+        "Use exact terminology from the job description when possible.",
+        "Include both the acronym and expanded form for common abbreviations.",
+        "Map skill keywords from the job description directly into this section."
+      ],
+      "formatting_constraints": [
+        "Bullet list or comma-separated values.",
+        "Single-column layout, no multi-column or table formatting.",
+        "No icons or graphics next to skill names.",
+        "Group hard skills before soft skills."
+      ],
+      "prioritization_logic": [
+        "List skills in order of relevance to the job description.",
+        "Must-have skills from the job description appear first.",
+        "Nice-to-have skills follow.",
+        "Candidate-only skills (not in JD) appear last, if space permits."
+      ]
+    },
+
+    "Work_experience": {
+      "section_label": "Work Experience",
+      "order": 4,
+      "description": "Professional experience entries in reverse chronological order with action-oriented bullet points.",
+      "fields": {
+        "Experience_entries": {
+          "type": "array",
+          "required": true,
+          "cv_field_ref": "experience.items",
+          "format": "Array of experience objects in reverse chronological order",
+          "item_format": {
+            "Experience_company_name": {
+              "type": "string",
+              "required": true,
+              "example": "Acme Corp"
+            },
+            "Experience_job_title": {
+              "type": "string",
+              "required": true,
+              "example": "Senior Software Engineer"
+            },
+            "Experience_location": {
+              "type": "string",
+              "required": false,
+              "example": "San Francisco, CA"
+            },
+            "Experience_start_date": {
+              "type": "string",
+              "required": true,
+              "format": "YYYY-MM",
+              "example": "2020-06"
+            },
+            "Experience_end_date": {
+              "type": "string",
+              "required": true,
+              "format": "YYYY-MM or 'Present'",
+              "example": "Present"
+            },
+            "Experience_bullets": {
+              "type": "array",
+              "required": true,
+              "format": "Array of achievement/responsibility strings beginning with action verbs",
+              "example": [
+                "Led migration of monolithic architecture to microservices, reducing deployment time by 40%",
+                "Developed real-time data pipeline processing 2M+ events daily using Kafka and Python",
+                "Mentored team of 5 junior engineers, improving code review turnaround by 30%"
+              ]
+            }
+          }
+        }
+      },
+      "rules": [
+        "List experience in reverse chronological order (most recent first).",
+        "Each entry must include: company name, job title, start date, end date, and bullet points.",
+        "4–6 bullets for the most recent role; 2–4 for older roles.",
+        "Bullets must begin with action verbs (e.g., Led, Developed, Implemented, Managed).",
+        "Include measurable results where possible (percentages, dollar amounts, team sizes, etc.).",
+        "Follow the Action → Result → Skill bullet pattern.",
+        "Do not fabricate achievements or metrics not supported by candidate data."
+      ],
+      "keyword_rules": [
+        "Include at least one keyword from the job description per bullet when applicable.",
+        "Analyze the job description and map required responsibilities to candidate bullets using equivalent vocabulary.",
+        "Use job-description terminology for tools, technologies, and methodologies mentioned in bullets.",
+        "Role titles should mirror JD language where truthful."
+      ],
+      "formatting_constraints": [
+        "Simple bullet points (plain dots only).",
+        "No tables, columns, or graphical elements.",
+        "Dates in YYYY-MM format.",
+        "Single-column layout.",
+        "Each bullet is a single paragraph."
+      ],
+      "prioritization_logic": [
+        "Most recent and relevant roles appear first.",
+        "Roles directly matching the target position get more bullets.",
+        "Older or less relevant roles may be condensed or omitted if space is limited.",
+        "Bullets covering must-have requirements appear before nice-to-have coverage."
+      ]
+    },
+
+    "Education": {
+      "section_label": "Education",
+      "order": 5,
+      "description": "Academic qualifications in reverse chronological order.",
+      "fields": {
+        "Education_entries": {
+          "type": "array",
+          "required": false,
+          "cv_field_ref": "education.items",
+          "format": "Array of education objects in reverse chronological order",
+          "item_format": {
+            "Education_institution": {
+              "type": "string",
+              "required": true,
+              "example": "Massachusetts Institute of Technology"
+            },
+            "Education_degree": {
+              "type": "string",
+              "required": true,
+              "example": "Bachelor of Science"
+            },
+            "Education_field_of_study": {
+              "type": "string",
+              "required": false,
+              "example": "Computer Science"
+            },
+            "Education_start_date": {
+              "type": "string",
+              "required": false,
+              "format": "YYYY-MM",
+              "example": "2012-09"
+            },
+            "Education_end_date": {
+              "type": "string",
+              "required": false,
+              "format": "YYYY-MM",
+              "example": "2016-06"
+            }
+          }
+        }
+      },
+      "rules": [
+        "List in reverse chronological order.",
+        "Each entry must include institution name and degree at minimum.",
+        "Exclude GPA unless the industry standard expects it.",
+        "Include relevant certifications if formal degrees are missing.",
+        "Field of study is recommended but optional."
+      ],
+      "keyword_rules": [
+        "Include degree names and fields of study that align with job description requirements.",
+        "If the job description mentions specific certifications, list them here if possessed."
+      ],
+      "formatting_constraints": [
+        "Plain text, single-column layout.",
+        "Dates in YYYY-MM format.",
+        "No tables or graphical elements."
+      ],
+      "prioritization_logic": [
+        "Most recent and highest-level qualifications appear first.",
+        "Degrees relevant to the target role take priority.",
+        "Certifications relevant to the JD are included when formal degrees are absent."
+      ]
+    },
+
+    "Languages": {
+      "section_label": "Languages",
+      "order": 6,
+      "description": "Spoken languages with standardized proficiency levels.",
+      "fields": {
+        "Language_entries": {
+          "type": "array",
+          "required": false,
+          "cv_field_ref": "languages.items",
+          "format": "Array of language objects with proficiency levels",
+          "item_format": {
+            "Language_name": {
+              "type": "string",
+              "required": true,
+              "example": "English"
+            },
+            "Language_proficiency": {
+              "type": "string",
+              "required": true,
+              "format": "One of: Native, Fluent, Intermediate, Basic",
+              "enum": ["Native", "Fluent", "Intermediate", "Basic"],
+              "example": "Native"
+            }
+          }
+        }
+      },
+      "rules": [
+        "Identify all spoken languages with proficiency levels.",
+        "Use standardized levels: Native, Fluent, Intermediate, Basic.",
+        "Only include languages relevant to the job if space is limited."
+      ],
+      "keyword_rules": [
+        "If the job description specifies language requirements, ensure matching languages are listed.",
+        "Place job-required languages first in the list."
+      ],
+      "formatting_constraints": [
+        "Plain text, single-column layout.",
+        "Format as 'Language — Proficiency' or a simple list.",
+        "No tables or graphical elements."
+      ],
+      "prioritization_logic": [
+        "Languages required by the job description appear first.",
+        "Native or fluent languages appear before intermediate or basic.",
+        "Omit languages at Basic level unless the JD specifically values them."
+      ]
+    }
+  },
+
+  "global_formatting_rules": {
+    "section_order": [
+      "Personal Information",
+      "Professional Summary",
+      "Skills",
+      "Work Experience",
+      "Education",
+      "Languages"
+    ],
+    "date_format": "YYYY-MM",
+    "bullet_points": "Single paragraphs with simple dot bullets only.",
+    "fonts": "Assume default text output; avoid styling, bold, italic, or underline unless the rendering system supports it.",
+    "layout": "Single-column, text-first structure.",
+    "prohibited_elements": [
+      "Headers and footers",
+      "Graphics, icons, or images",
+      "Multi-column layouts",
+      "Tables",
+      "Unusual or decorative characters",
+      "Non-parseable elements (text boxes, embedded objects)"
+    ],
+    "ats_compatibility": [
+      "Use standard section headings exactly as specified.",
+      "Avoid creative or non-standard section titles.",
+      "Ensure all content is selectable, parseable plain text.",
+      "Do not embed information in graphics or images."
+    ]
+  },
+
+  "keyword_extraction_rules": {
+    "description": "Rules for extracting keywords from the job description and mapping them to resume sections.",
+    "extraction_steps": [
+      "Identify job titles mentioned in the job description.",
+      "Identify hard skills: technologies, programming languages, frameworks, tools.",
+      "Identify soft skills: leadership, communication, collaboration terms.",
+      "Identify certifications and qualifications required.",
+      "Identify industry-specific terms and domain knowledge.",
+      "Identify key responsibilities and action phrases."
+    ],
+    "normalization_rules": [
+      "Normalize synonyms to a canonical form (e.g., 'JS' and 'JavaScript' both map to 'JavaScript').",
+      "Expand acronyms on first use (e.g., 'CI/CD (Continuous Integration/Continuous Deployment)').",
+      "Unify casing to title case for skill names.",
+      "Deduplicate keywords that refer to the same concept."
+    ],
+    "section_mapping": {
+      "skill_keywords": "Skills",
+      "action_and_impact_keywords": "Work_experience (Experience_bullets)",
+      "role_title_keywords": "Professional_summary and Work_experience (Experience_job_title)",
+      "certification_keywords": "Education",
+      "language_keywords": "Languages"
+    }
+  },
+
+  "tailoring_rules": {
+    "description": "Rules for adapting the resume when candidate data does not fully match the job description.",
+    "rules": [
+      "When candidate input does not include fields referenced in the job description, search for synonyms and semantically similar terms.",
+      "If the candidate does not possess a specified tool or skill, do not invent it — leave the field blank or omit it.",
+      "Use transferable skills and equivalent experience to bridge gaps where possible.",
+      "Flag missing must-have requirements as gaps for user review.",
+      "Prioritize truthful representation over keyword density."
+    ]
+  },
+
+  "validation_rules": {
+    "description": "Rules for verifying the final resume output.",
+    "rules": [
+      "Every section must have at least one keyword match with the job description.",
+      "All date fields must be parsed in YYYY-MM format.",
+      "Resume text must be single-column and ATS-parsable.",
+      "No fabricated skills, experiences, or metrics.",
+      "All required fields must be populated (Contact_full_name at minimum).",
+      "Section order must match the defined section_order.",
+      "Bullet points must begin with action verbs.",
+      "Professional summary must contain at least 3 keywords from the job description."
+    ]
+  }
+}
