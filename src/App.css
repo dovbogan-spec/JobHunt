@@ -1113,9 +1113,15 @@ textarea {
   padding: 0;
 }
 
-.preview-text,
-.preview-bullet {
-  margin: 0 0 0.42rem;
+.preview-content .preview-text,
+.preview-content .preview-bullet {
+  margin: 0;
+}
+
+.preview-content .preview-text + .preview-text,
+.preview-content .preview-text + .preview-bullet,
+.preview-content .preview-bullet + .preview-text {
+  margin-top: 0.24rem;
 }
 
 .bullet-row {
@@ -1904,25 +1910,61 @@ textarea {
   margin-bottom: 0;
 }
 
-.preview-content {
+.resume-preview .preview-content,
+.cv-preview-page .preview-content {
   font-family: Inter, Calibri, Helvetica, sans-serif;
   font-size: 10.5pt;
-  line-height: 1.2;
+  line-height: 1.24;
   color: #172624;
 }
 
 .preview-content h2 {
-  margin: 0;
+  margin: 0 0 0.2rem;
   font-size: 22px;
   font-weight: 700;
 }
 
 .preview-content h4 {
-  margin: 0.8rem 0 0.35rem;
+  margin: 0.48rem 0 0.2rem;
   font-size: 12.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.preview-content p {
+  margin: 0;
+}
+
+.preview-content ul,
+.preview-content ol {
+  margin: 0.18rem 0 0.28rem 1rem;
+  padding: 0;
+}
+
+.preview-content li {
+  margin: 0.08rem 0;
+  line-height: 1.22;
+}
+
+.preview-content li > p {
+  margin: 0;
+}
+
+.preview-content .bullet-row {
+  margin-bottom: 0.42rem;
+}
+
+.preview-content .experience-entry {
+  margin-bottom: 0.5rem;
+}
+
+.preview-content .experience-entry .preview-text {
+  line-height: 1.2;
+}
+
+.preview-content .experience-entry .preview-text + .preview-text {
+  margin-top: 0.14rem;
 }
 
 /* ── Model picker ───────────────────────────────────────────── */

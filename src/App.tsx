@@ -2117,7 +2117,7 @@ function App() {
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
               {previewResume.experience.filter((item) => item.visible).sort((a, b) => a.order - b.order).map((item) => (
-                <div className="bullet-row" key={item.id}>
+                <div className="bullet-row experience-entry" key={item.id}>
                   <p className="preview-text"><strong>{item.jobTitle}</strong> · {item.employer}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(item.description) }} />
@@ -2265,7 +2265,7 @@ function App() {
               if (field.type === "scoreLevel") {
                 return <p key={field.id} className="preview-text">{field.label}: {field.value || "Medium"}</p>;
               }
-              return <p key={field.id} className="preview-text">{field.value}</p>;
+              return <div key={field.id} className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(field.value) }} />;
             })}
           </div>
         );
