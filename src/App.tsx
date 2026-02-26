@@ -25,6 +25,8 @@ import { RichTextEditor } from "./components/RichTextEditor";
 import { DatePicker } from "./components/DatePicker";
 import { MultiEntrySectionOverview } from "./components/MultiEntrySectionOverview";
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
+import { buildResumeExportText, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
+import { formatSkillWithLevel, getPreviewExperienceEntries } from "./utils/resumeFormatting";
 import { buildResumeExportText, formatSkillLabel, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
 import "./App.css";
 
@@ -2172,7 +2174,7 @@ function App() {
                 {section.label}
                 <span className="preview-section-pencil" onClick={(e) => { e.stopPropagation(); setEditingLabelId(section.id); openSectionEditor(section.id); }}>✏️</span>
               </h4>
-              {getVisibleEntries(previewResume.experience).sort((a, b) => a.order - b.order).map((item) => (
+              {getPreviewExperienceEntries(previewResume.experience).sort((a, b) => a.order - b.order).map((item) => (
                 <div className="bullet-row experience-entry" key={item.id}>
                   <p className="preview-text"><strong>{item.jobTitle}</strong> · {item.employer}</p>
                   <p className="preview-text">{item.startDate} - {item.endDate} {item.location ? `· ${item.location}` : ""}</p>
@@ -2224,6 +2226,7 @@ function App() {
               </h4>
               <div>{getVisibleEntries(previewResume.skills).map((skill) => (
                 <div className="bullet-row" key={skill.id}>
+                  <p className="preview-text"><strong>{formatSkillWithLevel(skill)}</strong></p>
                   <p className="preview-text"><strong>{formatSkillLabel(skill.skillName, skill.proficiency)}</strong></p>
                   <div className="preview-text" dangerouslySetInnerHTML={{ __html: renderSafeRichText(skill.content) }} />
                 </div>

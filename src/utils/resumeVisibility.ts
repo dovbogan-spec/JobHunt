@@ -1,3 +1,5 @@
+import { formatSkillWithLevel } from "./resumeFormatting";
+
 export type VisibilityState = {
   isHidden?: boolean;
   visible?: boolean;
@@ -39,6 +41,7 @@ export function buildResumeExportText(input: {
   return {
     profileText: input.profile,
     skillsLine: getVisibleEntries(input.skills)
+      .map((skill) => formatSkillWithLevel(skill))
       .map((skill) => formatSkillLabel(skill.skillName, skill.proficiency))
       .join(", "),
     experienceBullets: getVisibleEntries(input.experience).map((item) => item.description),
