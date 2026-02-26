@@ -25,7 +25,6 @@ import { RichTextEditor } from "./components/RichTextEditor";
 import { DatePicker } from "./components/DatePicker";
 import { MultiEntrySectionOverview } from "./components/MultiEntrySectionOverview";
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
-import { buildResumeExportText, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
 import { formatSkillWithLevel, getPreviewExperienceEntries } from "./utils/resumeFormatting";
 import { buildResumeExportText, formatSkillLabel, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
 import "./App.css";
@@ -2855,78 +2854,12 @@ function App() {
                               const entryId = uuidv4();
                               setEditorDraft((prev) => ({
                                 ...prev,
-                                experience: [
-                                  ...prev.experience,
-                                  { id: uuidv4(), jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", isHidden: false, visible: true, order: prev.experience.length },
-                                ],
-                              }))
-                            }
-                          >
-                            + Add experience
-                          </button>
-                          {editorDraft.experience.map((item, index) => (
-                            <div className="structured-editor-row" key={item.id}>
-                              <input value={item.jobTitle} placeholder="Job title" onChange={(e) => updateExperienceField(index, "jobTitle", e.target.value)} />
-                              <input value={item.employer} placeholder="Employer" onChange={(e) => updateExperienceField(index, "employer", e.target.value)} />
-                              <DatePicker
-                                mode="monthYear"
-                                value={item.startDate}
-                                placeholder="Start date"
-                                ariaLabel="Experience start date"
-                                onChange={(value) => updateExperienceField(index, "startDate", value)}
-                              />
-                              <DatePicker
-                                mode="monthYear"
-                                value={item.endDate}
-                                placeholder="End date"
-                                ariaLabel="Experience end date"
-                                allowPresent
-                                minDate={item.startDate || undefined}
-                                onChange={(value) => updateExperienceField(index, "endDate", value)}
-                              />
-                              <input value={item.location} placeholder="Location" onChange={(e) => updateExperienceField(index, "location", e.target.value)} />
-                              <div>
-                                <p className="preview-text">Description</p>
-                                <RichTextEditor
-                                  value={item.description}
-                                  placeholder="Impact description"
-                                  debounceMs={350}
-                                  onCommit={(descriptionHtml) => updateExperienceDescription(item.id, index, descriptionHtml)}
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                className="entry-visibility-btn"
-                                onClick={() => toggleDraftEntryVisibility("experience", item.id)}
-                                title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
-                                aria-label={isEntryVisible(item) ? "Hide experience entry" : "Show experience entry"}
-                              >
-                                {isEntryVisible(item) ? "👁" : "🙈"}
-                              </button>
-                              <button
-                                className="remove-field-btn"
-                                onClick={() =>
-                                  setEditorDraft((prev) => ({
-                                    ...prev,
-                                    experience: prev.experience.filter((_, i) => i !== index),
-                                  }))
-                                }
-                                title="Remove"
-                              >
-                                −
-                              </button>
-                            </div>
-                          ))}
-                          {editorDraft.experience.length === 0 && (
-                            <p className="editor-empty-state">No experience entries yet. Add your work history above.</p>
-                          )}
-                        </div>
                                 experience: [...prev.experience, { id: entryId, jobTitle: "", employer: "", startDate: "", endDate: "", location: "", description: "", visible: true, order: prev.experience.length }],
                               }));
                               openMultiEntryEditor("experience", entryId);
                             }}
                             onSelectRow={(rowId) => openMultiEntryEditor("experience", rowId)}
-                            onToggleVisibility={(rowId) => toggleExperience(rowId)}
+                            onToggleVisibility={(rowId) => toggleDraftEntryVisibility("experience", rowId)}
                             containerRef={(node) => {
                               overviewContainerRefs.current.experience = node;
                             }}
@@ -3040,18 +2973,6 @@ function App() {
                                 >
                                   {isEntryVisible(item) ? "👁" : "🙈"}
                                 </button>
-                                <button
-                                  className="remove-field-btn"
-                                  onClick={() =>
-                                    setEditorDraft((prev) => ({
-                                      ...prev,
-                                      education: prev.education.filter((_, i) => i !== index),
-                                    }))
-                                  }
-                                  title="Remove"
-                                >
-                                  −
-                                </button>
                               </div>
                             );
                           })()
@@ -3100,36 +3021,6 @@ function App() {
                                   debounceMs={350}
                                   onCommit={(contentHtml) => setEditorDraft((prev) => ({ ...prev, interests: prev.interests.map((entry, itemIndex) => itemIndex === index ? { ...entry, content: contentHtml } : entry) }))}
                                 />
-                                {key === "languages" && (
-                                  <>
-                                    <select
-                                      value={(item as ResumeLanguageEntry).level}
-                                      onChange={(event) => updateLanguageLevel(index, event.target.value as LanguageLevel)}
-                                    >
-                                      {LANGUAGE_LEVEL_OPTIONS.map((option) => (
-                                        <option key={option.value} value={option.value}>{option.shortLabel}</option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      type="button"
-                                      className="entry-visibility-btn"
-                                      onClick={() => toggleDraftEntryVisibility("languages", item.id)}
-                                      title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
-                                      aria-label={isEntryVisible(item) ? "Hide language entry" : "Show language entry"}
-                                    >
-                                      {isEntryVisible(item) ? "👁" : "🙈"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="language-trash-btn"
-                                      aria-label="Remove language"
-                                      onClick={() => removeLanguage(index)}
-                                      title="Remove language"
-                                    >
-                                      🗑
-                                    </button>
-                                  </>
-                                )}
                               </div>
                               <button
                                 className="remove-field-btn"
@@ -3191,31 +3082,6 @@ function App() {
                                     onCommit={(contentHtml) => setEditorDraft((prev) => ({ ...prev, languages: prev.languages.map((entry, itemIndex) => itemIndex === entryIndex ? { ...entry, content: contentHtml } : entry) }))}
                                   />
                                 </div>
-                                {key === "interests" && (
-                                  <button
-                                    type="button"
-                                    className="entry-visibility-btn"
-                                    onClick={() => toggleDraftEntryVisibility("interests", item.id)}
-                                    title={isEntryVisible(item) ? "Hide entry" : "Show entry"}
-                                    aria-label={isEntryVisible(item) ? "Hide interest entry" : "Show interest entry"}
-                                  >
-                                    {isEntryVisible(item) ? "👁" : "🙈"}
-                                  </button>
-                                )}
-                                {key === "interests" && (
-                                  <button
-                                    className="remove-field-btn"
-                                    onClick={() => {
-                                      setEditorDraft((prev) => ({
-                                        ...prev,
-                                        interests: prev.interests.filter((_, i) => i !== index),
-                                      }));
-                                    }}
-                                    title="Remove"
-                                  >
-                                    −
-                                  </button>
-                                )}
                               </div>
                             );
                           })()

@@ -42,7 +42,6 @@ export function buildResumeExportText(input: {
     profileText: input.profile,
     skillsLine: getVisibleEntries(input.skills)
       .map((skill) => formatSkillWithLevel(skill))
-      .map((skill) => formatSkillLabel(skill.skillName, skill.proficiency))
       .join(", "),
     experienceBullets: getVisibleEntries(input.experience).map((item) => item.description),
   };
