@@ -3231,10 +3231,8 @@ function App() {
                   </div>
 
                   <div className="preview-frame">
-                    <div className="cv-preview-surface">
-                      <div className="cv-preview-page">
-                        <div className="preview-content">{renderResumePreviewContent()}</div>
-                      </div>
+                    <div className="cv-preview-page">
+                      <div className="preview-content">{renderResumePreviewContent()}</div>
                     </div>
                   </div>
                 </main>
