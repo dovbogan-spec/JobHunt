@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { logServerError, readJson, sendJson } from "../_utils.js";
+import { isLlmProvider, type LlmProvider as SupportedProvider } from "../../src/config/modelDefinitions.js";
 
-type SupportedProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
 type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
 
@@ -16,6 +16,7 @@ const providerDefaults: Record<SupportedProvider, { model: string }> = {
   anthropic: { model: "claude-3-5-sonnet-latest" },
   azureOpenai: { model: process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4o-mini" },
   gemini: { model: "gemini-1.5-pro" },
+  openrouter: { model: "openrouter/free" },
   custom: { model: process.env.CUSTOM_LLM_MODEL || "" },
 };
 
@@ -23,7 +24,7 @@ function parseRequest(body: unknown): LlmChatBody | null {
   if (!body || typeof body !== "object") return null;
   const payload = body as LlmChatBody;
 
-  if (payload.provider && !["openai", "anthropic", "azureOpenai", "gemini", "custom"].includes(payload.provider)) {
+  if (payload.provider && !isLlmProvider(payload.provider)) {
     return null;
   }
 
@@ -35,7 +36,7 @@ function parseRequest(body: unknown): LlmChatBody | null {
   return payload;
 }
 
-function getProviderConfig(provider: SupportedProvider) {
+function getProviderConfig(provider: SupportedProvider): { url: string; headers: Record<string, string> } {
   switch (provider) {
     case "openai": {
       if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_NOT_CONFIGURED");
@@ -78,6 +79,19 @@ function getProviderConfig(provider: SupportedProvider) {
         headers: {
           Authorization: `Bearer ${process.env.GEMINI_API_KEY}`,
           "Content-Type": "application/json",
+        },
+      };
+    }
+    case "openrouter": {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) throw new Error("OPENROUTER_NOT_CONFIGURED");
+      return {
+        url: process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1/chat/completions",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          ...(process.env.OPENROUTER_HTTP_REFERER ? { "HTTP-Referer": process.env.OPENROUTER_HTTP_REFERER } : {}),
+          ...(process.env.OPENROUTER_APP_NAME ? { "X-OpenRouter-Title": process.env.OPENROUTER_APP_NAME } : {}),
         },
       };
     }
@@ -148,9 +162,7 @@ function getUsageFromProvider(provider: SupportedProvider, data: unknown) {
 
 
 function normalizeProvider(provider: unknown): SupportedProvider {
-  if (["openai", "anthropic", "azureOpenai", "gemini", "custom"].includes(String(provider))) {
-    return provider as SupportedProvider;
-  }
+  if (isLlmProvider(provider)) return provider;
   return "openai";
 }
 

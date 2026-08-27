@@ -17,6 +17,10 @@ Copy `.env.example` to `.env` and set values:
 
 - `OPENAI_API_KEY` (required)
 - `OPENAI_MODEL` (optional, default `gpt-5.2`)
+- `OPENROUTER_API_KEY` (required when `LLM_PROVIDER=openrouter`; server-side only)
+- `OPENROUTER_MODEL` (optional, default `openrouter/free`)
+- `OPENROUTER_API_URL` (optional endpoint override)
+- `OPENROUTER_HTTP_REFERER` and `OPENROUTER_APP_NAME` (optional OpenRouter attribution headers)
 - `DATABASE_URL` (required)
 - `BLOB_READ_WRITE_TOKEN` (optional; if missing, uploads are stored under `.local_uploads/` in development)
 - `EDGE_CONFIG` (optional)
@@ -69,11 +73,13 @@ Smoke flow:
 4. Define secrets in Vercel Project Environment Variables (Production/Preview/Development as needed):
    - `OPENAI_API_KEY`
    - `OPENAI_MODEL`
+   - When deploying with OpenRouter: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and optionally `OPENROUTER_MODEL`, `OPENROUTER_API_URL`, `OPENROUTER_HTTP_REFERER`, and `OPENROUTER_APP_NAME`
    - `DATABASE_URL`
    - Optional flags/tokens from `.env.example`
 5. If you deploy via GitHub Actions, mirror required values as GitHub Actions secrets and pass them only to server-side build/deploy steps.
 6. Keep API routes/server modules (`api/*`, `server/*`) reading provider credentials from `process.env` only. Do not use browser `localStorage` or client-exposed `VITE_*` variables for raw provider keys.
 7. BYOK should use token exchange or encrypted server-side storage tied to authenticated users; do not store raw keys in browser storage.
+   OpenRouter keys must be configured only as server-side Vercel environment variables; the browser sends only the provider and model selection. Apply variables to every Vercel environment (Production, Preview, or Development) that should use OpenRouter, then redeploy.
 8. Deploy and verify:
    - `GET /api/health` returns `{ ok, openaiConfigured, model, checks }`.
 

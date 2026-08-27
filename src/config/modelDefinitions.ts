@@ -11,9 +11,16 @@
  *   anthropic    https://docs.anthropic.com/en/docs/models-overview
  *   azureOpenai  https://learn.microsoft.com/azure/ai-services/openai/concepts/models
  *   gemini       https://ai.google.dev/gemini-api/docs/models/gemini
+ *   openrouter   https://openrouter.ai/docs/features/model-routing
  */
 
-export type LlmProvider = "openai" | "anthropic" | "azureOpenai" | "gemini" | "custom";
+export const LLM_PROVIDERS = ["openai", "anthropic", "azureOpenai", "gemini", "openrouter", "custom"] as const;
+
+export type LlmProvider = (typeof LLM_PROVIDERS)[number];
+
+export function isLlmProvider(value: unknown): value is LlmProvider {
+  return typeof value === "string" && (LLM_PROVIDERS as readonly string[]).includes(value);
+}
 
 export type ModelDefinition = {
   id: string;
@@ -75,6 +82,13 @@ export const MODEL_CATALOG: Record<LlmProvider, ProviderDefinition> = {
       { id: "gemini-1.5-pro",           label: "Gemini 1.5 Pro" },
       { id: "gemini-1.5-flash",         label: "Gemini 1.5 Flash" },
       { id: "gemini-1.5-flash-8b",      label: "Gemini 1.5 Flash-8B" },
+    ],
+  },
+  openrouter: {
+    label: "OpenRouter",
+    defaultEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+    models: [
+      { id: "openrouter/free", label: "OpenRouter Free Models Router" },
     ],
   },
   custom: {
