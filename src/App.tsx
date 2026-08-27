@@ -1288,14 +1288,18 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: normalizedLink }),
       });
-      if (!res.ok) throw new Error("Unable to import URL");
+      if (!res.ok) {
+        const failure = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(failure?.message || "Unable to import URL");
+      }
       const data = (await res.json()) as { jdText?: string };
       return (data.jdText || "").slice(0, 7000);
-    } catch {
+    } catch (error) {
+      const detail = error instanceof Error ? ` (${error.message})` : "";
       setChatOpen(true);
       setChatMessages((prev) => [
         ...prev,
-        "Could not import URL directly. Please paste the job description text.",
+        `Could not import URL directly${detail}. Please paste the job description text.`,
       ]);
       return "";
     }
