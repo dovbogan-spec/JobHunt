@@ -27,6 +27,7 @@ import { MultiEntrySectionOverview } from "./components/MultiEntrySectionOvervie
 import { ensureRichHtml, sanitizeRichHtml } from "./utils/richText";
 import { formatSkillWithLevel, getPreviewExperienceEntries } from "./utils/resumeFormatting";
 import { buildResumeExportText, formatSkillLabel, getVisibleEntries, isEntryVisible, normalizeEntryVisibility } from "./utils/resumeVisibility";
+import { connectionLabel, markChangedConnectionStale, modelForRequest, type ConnectionRecord, type ConnectionRecords, type ConnectivityStatus } from "./utils/connectivity";
 import "./App.css";
 
 type TemplateName = "Modern" | "Classic" | "Technical" | "Professional";
@@ -435,7 +436,6 @@ const defaultLlmSettings: LlmSettings = {
   azureApiVersion: "2024-10-21",
   customHeaders: "",
 };
-type ConnectivityStatus = "idle" | "testing" | "success" | "error";
 const initialSections: ResumeSection[] = [
   { id: "header", label: "Personal Details", visible: true },
   { id: "experience", label: "Experience", visible: true },
@@ -687,22 +687,23 @@ function moveArrayItemById<T extends { id: string }>(items: T[], fromId: string,
   return moveArrayItem(items, fromIndex, toIndex);
 }
 
-function ModelStatusBadge({ status }: { status: ConnectivityStatus | undefined }) {
-  if (status === "success") return <span className="model-status-ok" aria-label="connected">✓</span>;
-  if (status === "error") return <span className="model-status-err" aria-label="not connected">✗</span>;
-  if (status === "testing") return <span className="model-status-testing" aria-label="testing">…</span>;
+function ModelStatusBadge({ record }: { record: ConnectionRecord | undefined }) {
+  const label = connectionLabel(record);
+  if (record?.status === "success") return <span className="model-status-ok">{label}</span>;
+  if (record?.status === "error") return <span className="model-status-err">{label}</span>;
+  if (record?.status === "testing") return <span className="model-status-testing">{label}</span>;
   return null;
 }
 
 type ModelPickerProps = {
   provider: LlmProvider;
   open: boolean;
-  statusMap: Partial<Record<LlmProvider, ConnectivityStatus>>;
+  connectionRecords: ConnectionRecords;
   onToggle: () => void;
   onSelect: (provider: LlmProvider) => void;
 };
 
-function ModelPickerDropdown({ provider, open, statusMap, onToggle, onSelect }: ModelPickerProps) {
+function ModelPickerDropdown({ provider, open, connectionRecords, onToggle, onSelect }: ModelPickerProps) {
   const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
   return (
     <div className="model-picker-wrapper">
@@ -712,7 +713,7 @@ function ModelPickerDropdown({ provider, open, statusMap, onToggle, onSelect }: 
         title="Switch AI model"
       >
         {"🤖 " + providerLabels[provider] + " "}
-        <ModelStatusBadge status={statusMap[provider]} />
+        <ModelStatusBadge record={connectionRecords[provider]} />
       </button>
       {open && (
         <div className="model-picker-dropdown">
@@ -723,7 +724,7 @@ function ModelPickerDropdown({ provider, open, statusMap, onToggle, onSelect }: 
               onClick={() => onSelect(p)}
             >
               <span className="model-picker-label">{providerLabels[p]}</span>
-              <ModelStatusBadge status={statusMap[p]} />
+              <ModelStatusBadge record={connectionRecords[p]} />
             </button>
           ))}
         </div>
@@ -850,7 +851,8 @@ function App() {
       setPendingLanguageFocusId(null);
     }
   }, [editorDraft.languages, pendingLanguageFocusId]);
-  const [modelStatusMap, setModelStatusMap] = useState<Partial<Record<LlmProvider, ConnectivityStatus>>>({});
+  const [connectionRecords, setConnectionRecords] = useState<ConnectionRecords>({});
+  const [connectivityAnnouncement, setConnectivityAnnouncement] = useState("");
   const deleteCancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const autosaveTimerRef = useRef<number | null>(null);
   const overviewScrollPositionsRef = useRef<Record<string, number>>({});
@@ -917,7 +919,13 @@ function App() {
   useEffect(() => {
     setConnectivityStatus("idle");
     setConnectivityErrorCode("");
-  }, [llmSettings]);
+    setConnectionRecords((records) => markChangedConnectionStale(
+      records,
+      llmSettings.provider,
+      llmSettings.model,
+      llmSettings.endpoint,
+    ));
+  }, [llmSettings.provider, llmSettings.model, llmSettings.endpoint]);
   useEffect(() => {
     if (!pendingDeleteSection) return;
     deleteCancelButtonRef.current?.focus();
@@ -1051,6 +1059,9 @@ function App() {
   }, [companyFilter, skillFilter, experienceItems.length]);
 
   function switchProvider(provider: LlmProvider) {
+    setConnectionRecords((records) => Object.fromEntries(
+      Object.entries(records).map(([key, record]) => [key, record?.status === "success" ? { status: "stale" } : record]),
+    ) as ConnectionRecords);
     setLlmSettings((prev) => ({
       ...prev,
       provider,
@@ -1121,23 +1132,37 @@ function App() {
 
       if (!response.ok) {
         setConnectivityStatus("error");
-        setConnectivityErrorCode(`HTTP ${response.status}`);
+        const errorCode = `HTTP_${response.status}`;
+        setConnectivityErrorCode(errorCode);
+        setConnectionRecords((prev) => ({ ...prev, [provider]: { status: "error", errorCode } }));
+        setConnectivityAnnouncement(`${providerLabels[provider]} connection failed.`);
         return;
       }
 
+      const data = await response.json() as { requestedModel?: string; resolvedModel?: string; connectedAt?: string };
+      const resolvedModel = data.resolvedModel || model;
       setConnectivityStatus("success");
-      setModelStatusMap((prev) => ({ ...prev, [provider]: "success" }));
+      setConnectionRecords((prev) => ({ ...prev, [provider]: {
+        status: "success",
+        requestedModel: data.requestedModel || model,
+        resolvedModel,
+        connectedAt: data.connectedAt || new Date().toISOString(),
+        endpoint: llmSettings.endpoint.trim(),
+      } }));
+      setConnectivityAnnouncement(`Connected to ${resolvedModel}.`);
     } catch (error) {
       setConnectivityStatus("error");
       setConnectivityErrorCode(
         error instanceof Error ? error.message : "PING_FAILED",
       );
       const { provider } = getLlmConnectionInfo(llmSettings);
-      setModelStatusMap((prev) => ({ ...prev, [provider]: "error" }));
+      const errorCode = error instanceof Error ? error.message : "PING_FAILED";
+      setConnectionRecords((prev) => ({ ...prev, [provider]: { status: "error", errorCode } }));
+      setConnectivityAnnouncement(`${providerLabels[provider]} connection failed.`);
     }
   }
 
-  async function pingProvider(provider: LlmProvider): Promise<boolean> {
+  async function pingProvider(provider: LlmProvider): Promise<ConnectionRecord> {
     const model = getDefaultModel(provider);
     try {
       const response = await fetch("/api/llm/chat", {
@@ -1145,23 +1170,26 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, model, messages: [{ role: "user", content: "ping" }] }),
       });
-      return response.ok;
+      if (!response.ok) return { status: "error", errorCode: `HTTP_${response.status}` };
+      const data = await response.json() as { requestedModel?: string; resolvedModel?: string; connectedAt?: string };
+      return { status: "success", requestedModel: data.requestedModel || model, resolvedModel: data.resolvedModel || model,
+        connectedAt: data.connectedAt || new Date().toISOString(), endpoint: "" };
     } catch {
-      return false;
+      return { status: "error", errorCode: "PING_FAILED" };
     }
   }
 
   async function pingAllProviders() {
     const providers = (Object.keys(MODEL_CATALOG) as LlmProvider[]).filter((p) => p !== "custom");
-    setModelStatusMap((prev) => {
+    setConnectionRecords((prev) => {
       const next = { ...prev };
-      for (const p of providers) next[p] = "testing";
+      for (const p of providers) next[p] = { status: "testing" };
       return next;
     });
     const results = await Promise.all(providers.map((p) => pingProvider(p)));
-    setModelStatusMap((prev) => {
+    setConnectionRecords((prev) => {
       const next = { ...prev };
-      providers.forEach((p, i) => { next[p] = results[i] ? "success" : "error"; });
+      providers.forEach((p, i) => { next[p] = results[i]; });
       return next;
     });
   }
@@ -1171,7 +1199,8 @@ function App() {
     payload: Record<string, unknown>,
   ) {
     const { provider } = getLlmConnectionInfo(llmSettings);
-    const { apiUrl, model } = getModelApiConfig(llmSettings);
+    const { apiUrl, model: requestedModel } = getModelApiConfig(llmSettings);
+    const model = modelForRequest(requestedModel, connectionRecords[provider]);
     if (!apiUrl) return null;
 
     const headers: Record<string, string> = {
@@ -2339,7 +2368,7 @@ function App() {
             <ModelPickerDropdown
               provider={llmSettings.provider}
               open={modelPickerOpen}
-              statusMap={modelStatusMap}
+              connectionRecords={connectionRecords}
               onToggle={() => {
                 const opening = !modelPickerOpen;
                 setModelPickerOpen(opening);
@@ -3412,6 +3441,14 @@ function App() {
                       {connectivityErrorCode}
                     </p>
                   )}
+                  {connectionRecords[llmSettings.provider]?.status === "success" && (
+                    <p className="connectivity-success">
+                      {connectionLabel(connectionRecords[llmSettings.provider])}
+                    </p>
+                  )}
+                  <p className="sr-only" aria-live="polite" aria-atomic="true">
+                    {connectivityAnnouncement}
+                  </p>
                 </div>
               </div>
               <div className="llm-card">

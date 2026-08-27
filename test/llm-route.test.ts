@@ -129,6 +129,8 @@ test("chat route sends OpenRouter credentials and attribution only upstream", as
       model: "test/free",
     });
     assert.doesNotMatch(JSON.stringify(res.json), /server-openrouter-secret/);
+    assert.equal(res.json.requestedModel, "openrouter/free");
+    assert.equal(res.json.resolvedModel, "test/free");
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.OPENROUTER_API_KEY;
@@ -165,6 +167,8 @@ test("catch-all route uses OpenRouter server configuration instead of OpenAI cre
     assert.equal(headers.Authorization, "Bearer openrouter-only-secret");
     assert.doesNotMatch(JSON.stringify(upstreamInit), /wrong-openai-secret/);
     assert.equal(JSON.parse(String(upstreamInit?.body)).model, "test/free");
+    assert.equal(res.json.requestedModel, "openrouter/free");
+    assert.equal(res.json.resolvedModel, "test/free");
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.OPENROUTER_API_KEY;

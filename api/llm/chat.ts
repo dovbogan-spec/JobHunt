@@ -214,6 +214,11 @@ export default async function handler(req: IncomingMessage & { method?: string }
     return sendJson(res, 200, {
       ok: true,
       provider,
+      requestedModel: model,
+      resolvedModel: typeof (data as { model?: unknown }).model === "string" && (data as { model: string }).model.trim()
+        ? (data as { model: string }).model
+        : providerRes.headers.get("X-Resolved-Model") || model,
+      connectedAt: new Date().toISOString(),
       content: getContentFromProvider(provider, data),
       usage: getUsageFromProvider(provider, data),
     });

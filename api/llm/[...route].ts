@@ -141,7 +141,7 @@ async function callUpstream(
   });
 
   const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
+  return { ok: response.ok, status: response.status, data, resolvedModel: response.headers.get("X-Resolved-Model") };
 }
 
 export default async function handler(
@@ -196,7 +196,14 @@ export default async function handler(
 
       const response = await callUpstream(upstream.endpoint, upstream.model, headers, pingBody, upstream.provider);
       if (!response.ok) return sendJson(res, response.status, { ok: false, error: `HTTP ${response.status}` });
-      return sendJson(res, 200, { ok: true });
+      const reportedModel = (response.data as { model?: unknown }).model;
+      return sendJson(res, 200, {
+        ok: true,
+        provider: upstream.provider,
+        requestedModel: upstream.model,
+        resolvedModel: typeof reportedModel === "string" && reportedModel.trim() ? reportedModel : response.resolvedModel || upstream.model,
+        connectedAt: new Date().toISOString(),
+      });
     }
 
     const chatBody = body as ChatBody;
@@ -221,7 +228,15 @@ export default async function handler(
 
     const content =
       (response.data as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content || "{}";
-    return sendJson(res, 200, { ok: true, content });
+    const reportedModel = (response.data as { model?: unknown }).model;
+    return sendJson(res, 200, {
+      ok: true,
+      provider: upstream.provider,
+      requestedModel: upstream.model,
+      resolvedModel: typeof reportedModel === "string" && reportedModel.trim() ? reportedModel : response.resolvedModel || upstream.model,
+      connectedAt: new Date().toISOString(),
+      content,
+    });
   } catch (error) {
     logServerError("/api/llm/*", error);
     const message = error instanceof Error ? error.message : "LLM request failed";
