@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import { logServerError, readJson, sendJson } from "../_utils.js";
 import { isLlmProvider, type LlmProvider as SupportedProvider } from "../../src/config/modelDefinitions.js";
+import { openRouterChat } from "../../server/llm/openRouter.js";
 
 type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
@@ -191,11 +192,13 @@ export default async function handler(req: IncomingMessage & { method?: string }
     const providerConfig = getProviderConfig(provider);
     const outboundBody = buildOutboundBody(provider, model, messages);
 
-    const providerRes = await fetch(providerConfig.url, {
-      method: "POST",
-      headers: providerConfig.headers,
-      body: JSON.stringify(outboundBody),
-    });
+    const providerRes = provider === "openrouter"
+      ? await openRouterChat(outboundBody)
+      : await fetch(providerConfig.url, {
+          method: "POST",
+          headers: providerConfig.headers,
+          body: JSON.stringify(outboundBody),
+        });
 
     const rawText = await providerRes.text();
     const data = rawText ? JSON.parse(rawText) : {};

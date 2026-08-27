@@ -3,6 +3,7 @@ import { AGENT_PROMPTS, type AgentPromptId } from "../../src/agentPrompts.js";
 import { getConfig } from "../../server/config/edgeConfig.js";
 import { logServerError, readJson, sendJson } from "../_utils.js";
 import { isLlmProvider, type LlmProvider } from "../../src/config/modelDefinitions.js";
+import { openRouterChat } from "../../server/llm/openRouter.js";
 
 type LlmSettings = {
   enabled?: boolean;
@@ -131,8 +132,9 @@ async function callUpstream(
   model: string,
   headers: Record<string, string>,
   requestBody: Record<string, unknown>,
+  provider?: LlmProvider,
 ) {
-  const response = await fetch(endpoint, {
+  const response = provider === "openrouter" ? await openRouterChat(requestBody) : await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({ model, ...requestBody }),
@@ -192,7 +194,7 @@ export default async function handler(
         pingBody.apiVersion = upstream.azureApiVersion;
       }
 
-      const response = await callUpstream(upstream.endpoint, upstream.model, headers, pingBody);
+      const response = await callUpstream(upstream.endpoint, upstream.model, headers, pingBody, upstream.provider);
       if (!response.ok) return sendJson(res, response.status, { ok: false, error: `HTTP ${response.status}` });
       return sendJson(res, 200, { ok: true });
     }
@@ -214,7 +216,7 @@ export default async function handler(
       requestBody.apiVersion = upstream.azureApiVersion;
     }
 
-    const response = await callUpstream(upstream.endpoint, upstream.model, headers, requestBody);
+    const response = await callUpstream(upstream.endpoint, upstream.model, headers, requestBody, upstream.provider);
     if (!response.ok) return sendJson(res, response.status, { ok: false, error: `HTTP ${response.status}` });
 
     const content =
