@@ -4,7 +4,7 @@ import { MODEL_CATALOG, getDefaultModel, getModelsForProvider } from "../src/con
 
 test("MODEL_CATALOG contains all expected providers", () => {
   const providers = Object.keys(MODEL_CATALOG);
-  for (const p of ["openai", "anthropic", "azureOpenai", "gemini", "custom"]) {
+  for (const p of ["openai", "anthropic", "azureOpenai", "gemini", "openrouter", "custom"]) {
     assert.ok(providers.includes(p), `Expected provider ${p} in MODEL_CATALOG`);
   }
 });
