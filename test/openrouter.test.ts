@@ -59,8 +59,8 @@ test("candidate probing falls back after rate limits and caches catalog and sele
     return new Response("{}", { status: body.model === "first" ? 429 : 200 });
   };
   const options = { fetch: mockFetch, apiKey: "secret", maxProbes: 2 };
-  assert.equal(await connectFreeModel(options), "second");
-  assert.equal(await connectFreeModel(options), "second");
+  assert.deepEqual(await connectFreeModel(options), { requestedModel: "second", resolvedModel: "second" });
+  assert.deepEqual(await connectFreeModel(options), { requestedModel: "second", resolvedModel: "second" });
   assert.equal(catalogCalls, 1);
   assert.deepEqual(probed, ["first", "second"]);
 });

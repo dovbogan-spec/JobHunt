@@ -51,7 +51,8 @@ export class OpenRouterError extends Error {
 
 type CacheEntry<T> = { value: T; expiresAt: number };
 let catalogCache: CacheEntry<FreeModel[]> | undefined;
-let selectedCache: CacheEntry<string> | undefined;
+export type ConnectedOpenRouterModel = { requestedModel: string; resolvedModel: string };
+let selectedCache: CacheEntry<ConnectedOpenRouterModel> | undefined;
 
 type Options = {
   fetch?: typeof globalThis.fetch;
@@ -181,7 +182,7 @@ async function request(model: string, body: Record<string, unknown>, c: ReturnTy
   });
 }
 
-export async function connectFreeModel(options: Options = {}) {
+export async function connectFreeModel(options: Options = {}): Promise<ConnectedOpenRouterModel> {
   const c = config(options);
   credentials(c.apiKey);
   if (selectedCache && selectedCache.expiresAt > c.now()) return selectedCache.value;
@@ -193,8 +194,13 @@ export async function connectFreeModel(options: Options = {}) {
         messages: [{ role: "user", content: "Reply OK" }], max_tokens: 1, temperature: 0,
       }, c);
       if (response.ok) {
-        selectedCache = { value: candidate.id, expiresAt: c.now() + c.selectedTtlMs };
-        return candidate.id;
+        const data = await response.clone().json().catch(() => ({})) as { model?: unknown };
+        const selected = {
+          requestedModel: candidate.id,
+          resolvedModel: typeof data.model === "string" && data.model.trim() ? data.model : candidate.id,
+        };
+        selectedCache = { value: selected, expiresAt: c.now() + c.selectedTtlMs };
+        return selected;
       }
       if (!retryableStatuses.has(response.status)) continue;
     } catch { /* A timeout/network failure only rejects this candidate. */ }
@@ -207,12 +213,17 @@ export async function openRouterChat(body: Record<string, unknown>, options: Opt
   credentials(c.apiKey);
   const model = await connectFreeModel(options);
   try {
-    const response = await request(model, body, c);
-    if (response.ok || !retryableStatuses.has(response.status)) return response;
+    const response = await request(model.resolvedModel, body, c);
+    if (response.ok || !retryableStatuses.has(response.status)) {
+      response.headers.set("X-Resolved-Model", model.resolvedModel);
+      return response;
+    }
   } catch { /* Rediscover once after transient selected-model failure. */ }
   selectedCache = undefined;
   const replacement = await connectFreeModel(options);
-  return request(replacement, body, c);
+  const response = await request(replacement.resolvedModel, body, c);
+  response.headers.set("X-Resolved-Model", replacement.resolvedModel);
+  return response;
 }
 
 export function resetOpenRouterCaches() {

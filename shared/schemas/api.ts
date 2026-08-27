@@ -19,6 +19,17 @@ export const chatSchema = z.object({
   message: z.string().min(1).max(4000),
 });
 
+/** Common response returned by every successful provider connectivity probe. */
+export const connectivityResponseSchema = z.object({
+  ok: z.literal(true),
+  provider: z.string().min(1),
+  requestedModel: z.string().min(1),
+  resolvedModel: z.string().min(1),
+  connectedAt: z.string().datetime(),
+});
+
+export type ConnectivityResponse = z.infer<typeof connectivityResponseSchema>;
+
 export const importJdSchema = z.object({
   url: z.string().url(),
 });
