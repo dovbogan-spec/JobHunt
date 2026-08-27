@@ -1,5 +1,4 @@
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
 import { detectFileKind } from "./fileType.js";
 
 type ExtractResult = {
@@ -73,13 +72,23 @@ export async function extractExperienceText(fileName: string, contentType: strin
     return { text, method: "docx_mammoth", warnings: extracted.messages.map((message) => message.message) };
   }
 
+  // pdf-parse loads pdf.js and its native canvas polyfills as soon as the module
+  // is evaluated. Keep that initialization out of non-PDF upload invocations,
+  // and ensure the native canvas package is a direct production dependency so
+  // serverless dependency tracing includes it in the deployed function.
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data: bytes });
-  const extracted = await parser.getText();
-  const text = sanitizeExtractedText(extracted.text || "");
-  const corruptionMessage = extractionLooksCorrupt(text);
-  if (corruptionMessage) throw new Error(corruptionMessage);
 
-  return { text, method: "pdf_parse", warnings: [] };
+  try {
+    const extracted = await parser.getText();
+    const text = sanitizeExtractedText(extracted.text || "");
+    const corruptionMessage = extractionLooksCorrupt(text);
+    if (corruptionMessage) throw new Error(corruptionMessage);
+
+    return { text, method: "pdf_parse", warnings: [] };
+  } finally {
+    await parser.destroy();
+  }
 }
 
 export function clampExtractionText(text: string) {
