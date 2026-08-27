@@ -1124,7 +1124,7 @@ function App() {
         messages: [{ role: "user", content: "ping" }],
       };
 
-      const response = await fetch("/api/llm/chat", {
+      const response = await fetch("/api/llm/ping", {
         method: "POST",
         headers,
         body: JSON.stringify(requestBody),
@@ -1165,7 +1165,7 @@ function App() {
   async function pingProvider(provider: LlmProvider): Promise<ConnectionRecord> {
     const model = getDefaultModel(provider);
     try {
-      const response = await fetch("/api/llm/chat", {
+      const response = await fetch("/api/llm/ping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ provider, model, messages: [{ role: "user", content: "ping" }] }),

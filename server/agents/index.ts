@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getConfig } from "../config/edgeConfig.js";
 import { Agent1OutputSchema, Agent4InputEnvelopeSchema, Agent4OutputSchema } from "../../shared/schemas/agents/index.js";
 import { loadCvFieldRegistry, validateCvFieldsPayload } from "../config/cvFieldRegistry.js";
+import { defaultModel } from "../llm/config.js";
 
 type AgentContext = {
   runId: string;
@@ -89,7 +90,7 @@ function createAgent(
     outputSchema,
     async run(ctx) {
       const config = await getConfig();
-      const fallbackModel = process.env.OPENAI_MODEL || "gpt-5.2";
+      const fallbackModel = defaultModel();
       const model = config.defaultModels[role] ?? fallbackModel;
       const prompt = await loadPrompt(promptFile);
       void prompt;

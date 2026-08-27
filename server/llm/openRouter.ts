@@ -82,7 +82,7 @@ function config(options: Options = {}) {
   return {
     fetch: options.fetch ?? globalThis.fetch,
     now: options.now ?? Date.now,
-    apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? "",
+    apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.LLM_API_KEY ?? "",
     preferences: options.preferences ?? csv(process.env.OPENROUTER_FREE_MODEL_PREFERENCES),
     allowlist: options.allowlist ?? csv(process.env.OPENROUTER_FREE_MODEL_ALLOWLIST),
     catalogTtlMs: options.catalogTtlMs ?? positiveInteger(process.env.OPENROUTER_CATALOG_TTL_MS, 5 * 60_000),
