@@ -4,6 +4,16 @@ import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import handler from "../api/llm/[...route].js";
 import chatHandler from "../api/llm/chat.js";
+import { resetOpenRouterCaches } from "../server/llm/openRouter.js";
+
+const freeCatalog = {
+  data: [{
+    id: "test/free", context_length: 16_384,
+    pricing: { prompt: "0", completion: "0" },
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
+    supported_parameters: ["temperature"],
+  }],
+};
 
 function createReq(
   route: string,
@@ -77,6 +87,7 @@ test("llm route rejects auth custom headers when BYOK is disabled", async () => 
 });
 
 test("chat route sends OpenRouter credentials and attribution only upstream", async () => {
+  resetOpenRouterCaches();
   const originalFetch = globalThis.fetch;
   process.env.OPENROUTER_API_KEY = "server-openrouter-secret";
   process.env.OPENROUTER_HTTP_REFERER = "https://jobhunt.example";
@@ -87,6 +98,9 @@ test("chat route sends OpenRouter credentials and attribution only upstream", as
   globalThis.fetch = async (input, init) => {
     upstreamUrl = String(input);
     upstreamInit = init;
+    if (upstreamUrl.endsWith("/models")) {
+      return new Response(JSON.stringify(freeCatalog), { status: 200 });
+    }
     return new Response(JSON.stringify({ choices: [{ message: { content: "hello" } }] }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -110,9 +124,9 @@ test("chat route sends OpenRouter credentials and attribution only upstream", as
     assert.equal(headers["HTTP-Referer"], "https://jobhunt.example");
     assert.equal(headers["X-OpenRouter-Title"], "JobHunt Tests");
     assert.deepEqual(JSON.parse(String(upstreamInit?.body)), {
-      model: "openrouter/free",
       messages: [{ role: "user", content: "Hello" }],
       temperature: 0.2,
+      model: "test/free",
     });
     assert.doesNotMatch(JSON.stringify(res.json), /server-openrouter-secret/);
   } finally {
@@ -124,6 +138,7 @@ test("chat route sends OpenRouter credentials and attribution only upstream", as
 });
 
 test("catch-all route uses OpenRouter server configuration instead of OpenAI credentials", async () => {
+  resetOpenRouterCaches();
   const originalFetch = globalThis.fetch;
   process.env.OPENROUTER_API_KEY = "openrouter-only-secret";
   process.env.OPENAI_API_KEY = "wrong-openai-secret";
@@ -133,6 +148,9 @@ test("catch-all route uses OpenRouter server configuration instead of OpenAI cre
   globalThis.fetch = async (input, init) => {
     upstreamUrl = String(input);
     upstreamInit = init;
+    if (upstreamUrl.endsWith("/models")) {
+      return new Response(JSON.stringify(freeCatalog), { status: 200 });
+    }
     return new Response(JSON.stringify({ choices: [{ message: { content: "pong" } }] }), { status: 200 });
   };
 
@@ -146,7 +164,7 @@ test("catch-all route uses OpenRouter server configuration instead of OpenAI cre
     const headers = upstreamInit?.headers as Record<string, string>;
     assert.equal(headers.Authorization, "Bearer openrouter-only-secret");
     assert.doesNotMatch(JSON.stringify(upstreamInit), /wrong-openai-secret/);
-    assert.equal(JSON.parse(String(upstreamInit?.body)).model, "openrouter/free");
+    assert.equal(JSON.parse(String(upstreamInit?.body)).model, "test/free");
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.OPENROUTER_API_KEY;
