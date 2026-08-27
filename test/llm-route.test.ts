@@ -67,7 +67,9 @@ test("llm route rejects client api key when BYOK is disabled", async () => {
 
   assert.equal(res.statusCode, 400);
   assert.equal(res.json.ok, false);
-  assert.match(String(res.json.error), /disabled by server policy/);
+  assert.equal((res.json.error as { code: string }).code, "INVALID_PAYLOAD");
+  assert.match((res.json.error as { message: string }).message, /disabled by server policy/);
+  assert.equal(res.json.retryable, false);
 });
 
 test("llm route rejects auth custom headers when BYOK is disabled", async () => {
@@ -83,7 +85,49 @@ test("llm route rejects auth custom headers when BYOK is disabled", async () => 
 
   assert.equal(res.statusCode, 400);
   assert.equal(res.json.ok, false);
-  assert.match(String(res.json.error), /authentication headers are disabled/);
+  assert.equal((res.json.error as { code: string }).code, "INVALID_PAYLOAD");
+  assert.match((res.json.error as { message: string }).message, /credentials are disabled/);
+});
+
+test("OpenRouter ping and chat use the same adapter configuration and selected model", async () => {
+  resetOpenRouterCaches();
+  const originalFetch = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = "shared-secret";
+  process.env.OPENROUTER_MODEL = "openrouter/free";
+  process.env.LLM_MODEL = "must-not-override-provider-model";
+  const requests: Array<{ url: string; authorization: string | undefined; model: string }> = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/models")) return new Response(JSON.stringify(freeCatalog), { status: 200 });
+    const headers = init?.headers as Record<string, string>;
+    const body = JSON.parse(String(init?.body)) as { model: string };
+    requests.push({ url, authorization: headers.Authorization, model: body.model });
+    return new Response(JSON.stringify({ model: "test/free", choices: [{ message: { content: "ok" } }] }), { status: 200 });
+  };
+
+  try {
+    const pingRes = createRes();
+    await handler(createReq("ping", { provider: "openrouter" }), pingRes);
+    const chatRes = createRes();
+    await chatHandler(createReq("chat", { provider: "openrouter", messages: [{ role: "user", content: "Hello" }] }), chatRes);
+
+    assert.equal(pingRes.statusCode, 200);
+    assert.equal(chatRes.statusCode, 200);
+    assert.deepEqual(
+      { provider: pingRes.json.provider, requestedModel: pingRes.json.requestedModel, resolvedModel: pingRes.json.resolvedModel },
+      { provider: chatRes.json.provider, requestedModel: chatRes.json.requestedModel, resolvedModel: chatRes.json.resolvedModel },
+    );
+    assert.ok(requests.length >= 3);
+    assert.ok(requests.every((request) => request.url.endsWith("/chat/completions")));
+    assert.ok(requests.every((request) => request.authorization === "Bearer shared-secret"));
+    assert.ok(requests.every((request) => request.model === "test/free"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_MODEL;
+    delete process.env.LLM_MODEL;
+    resetOpenRouterCaches();
+  }
 });
 
 test("chat route sends OpenRouter credentials and attribution only upstream", async () => {

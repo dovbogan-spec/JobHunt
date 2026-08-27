@@ -1,4 +1,5 @@
 import { get } from "@vercel/edge-config";
+import { defaultModel } from "../llm/config.js";
 
 type AgentName = "planner" | "extractor" | "writer" | "verifier";
 
@@ -20,7 +21,7 @@ function envBool(value: string | undefined, fallback: boolean) {
 }
 
 function fallbackConfig(): AppConfig {
-  const model = process.env.OPENAI_MODEL || "gpt-5.2";
+  const model = defaultModel();
   return {
     defaultModels: {
       planner: model,
