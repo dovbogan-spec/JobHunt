@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs24.x",
+      "includeFiles": [
+        "node_modules/@napi-rs/canvas/**/*",
+        "node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+        "node_modules/pdf-parse/**/*",
+        "node_modules/pdfjs-dist/**/*"
+      ]
+    }
+  }
+}
