@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      promote_production:
+        description: Promote the tested preview to production
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check:no-dark
+      - run: npm test
+      - name: Type-check application
+        run: npx tsc -b
+
+  preview-pdf-smoke:
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.preview_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Deploy preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          preview_url="$(vercel deploy --yes --token "$VERCEL_TOKEN")"
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+      - name: Start preview log capture
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+        run: |
+          vercel logs "$PREVIEW_URL" --json --token "$VERCEL_TOKEN" > pdf-request.log 2>&1 &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+        id: logs
+      - name: Exercise deployed PDF parser
+        env:
+          BASE_URL: ${{ steps.deploy.outputs.preview_url }}
+        run: npm run smoke:pdf:deployed
+      - name: Finish log capture
+        if: always()
+        run: |
+          sleep 5
+          kill "${{ steps.logs.outputs.pid }}" 2>/dev/null || true
+      - name: Reject PDF runtime resolution failures
+        if: always()
+        run: npm run smoke:pdf:logs -- pdf-request.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-pdf-request-logs
+          path: pdf-request.log
+
+  promote-production:
+    needs: preview-pdf-smoke
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_production
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Promote tested preview
+        env:
+          PREVIEW_URL: ${{ needs.preview-pdf-smoke.outputs.preview_url }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel promote "$PREVIEW_URL" --yes --token "$VERCEL_TOKEN"

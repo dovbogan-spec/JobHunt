@@ -12,6 +12,8 @@
     "lint": "npm run check:no-dark && eslint .",
     "preview": "vite preview",
     "smoke:upload": "node scripts/smoke-upload.mjs",
+    "smoke:pdf:deployed": "node scripts/smoke-pdf-deployed.mjs",
+    "smoke:pdf:logs": "node scripts/check-pdf-deployment-logs.mjs",
     "test": "tsx --test test/**/*.test.ts",
     "smoke:e2e": "tsx scripts/smoke.ts",
     "check:no-dark": "node scripts/check-no-dark.js"
