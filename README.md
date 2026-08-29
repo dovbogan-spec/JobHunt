@@ -81,7 +81,10 @@ Smoke flow:
 7. BYOK should use token exchange or encrypted server-side storage tied to authenticated users; do not store raw keys in browser storage.
    OpenRouter keys must be configured only as server-side Vercel environment variables; the browser sends only the provider and model selection. Apply variables to every Vercel environment (Production, Preview, or Development) that should use OpenRouter, then redeploy.
 8. Deploy and verify:
-   - `GET /api/health` returns `{ ok, openaiConfigured, model, checks }`.
+   - `GET /api/health` returns overall `ok`/`status`, deployment `gitSha` and Node `runtime`, and component checks.
+   - PDF readiness loads the dependency and initializes a parser without parsing user content. A failure returns the stable `pdfRuntime.code` `pdf_runtime_unavailable`; loader error text is never exposed.
+   - PDF readiness is **degrading, not critical**: an unavailable PDF runtime returns HTTP 200 with `ok: true` and `status: "degraded"` when the database is available. A database failure remains HTTP 500 with `ok: false` and `status: "unhealthy"`.
+9. Set the GitHub Actions secret `PRODUCTION_HEALTH_URL` to the production `/api/health` URL. The scheduled production health monitor runs every 15 minutes and fails (triggering the repository's failed-workflow notifications) when the endpoint is unhealthy or PDF readiness is degraded.
 
 ## Troubleshooting
 
