@@ -1,0 +1,16 @@
+name: Production health monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment and PDF readiness
+        env:
+          HEALTHCHECK_URL: ${{ secrets.PRODUCTION_HEALTH_URL }}
+        run: node scripts/check-health.mjs
