@@ -3,12 +3,14 @@ import { sendJson } from "../_utils.js";
 import { clampExtractionText, extractExperienceText } from "../../server/text/extract.js";
 import { detectFileKind } from "../../server/text/fileType.js";
 import { parseSingleMultipartFile } from "../../server/text/multipart.js";
+import { sendExtractionFailure } from "../_extractionErrors.js";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse) {
   if (req.method !== "POST") return sendJson(res, 405, { ok: false, error: "Method not allowed" });
 
+  let format = "unknown";
   try {
     const part = await parseSingleMultipartFile(req, "file");
 
@@ -20,6 +22,7 @@ export default async function handler(req: IncomingMessage & { method?: string }
     if (!kind) {
       return sendJson(res, 400, { ok: false, error: "Unsupported file type. Use pdf/docx/txt/md." });
     }
+    format = kind;
 
     const extracted = await extractExperienceText(part.filename, part.contentType, part.data);
     const experienceText = clampExtractionText(extracted.text);
@@ -34,7 +37,6 @@ export default async function handler(req: IncomingMessage & { method?: string }
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return sendJson(res, 400, { ok: false, error: message });
+    return sendExtractionFailure(req, res, error, { route: "/api/experience/parse", format });
   }
 }
