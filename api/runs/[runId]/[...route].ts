@@ -20,6 +20,7 @@ import { clampExtractionText, extractExperienceText } from "../../../server/text
 import { detectFileKind } from "../../../server/text/fileType.js";
 import { parseSingleMultipartFile } from "../../../server/text/multipart.js";
 import { chatSchema, runStepSchema } from "../../../shared/schemas/api.js";
+import { sendExtractionFailure } from "../../_extractionErrors.js";
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const styles = StyleSheet.create({
@@ -149,6 +150,7 @@ export default async function handler(
 
   if (route === "upload") {
     if (req.method !== "POST") return sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    let format = "unknown";
     try {
       const part = await parseSingleMultipartFile(req, "file");
       if (part.data.byteLength > MAX_UPLOAD_BYTES) {
@@ -158,10 +160,11 @@ export default async function handler(
       if (!kind) {
         return sendJson(res, 400, { ok: false, error: "Unsupported file type. Use pdf/docx/txt." });
       }
+      format = kind;
 
-      const uploaded = await putExperienceFile(runId, part.filename, part.data, part.contentType);
       const extracted = await extractExperienceText(part.filename, part.contentType, part.data);
       const experienceText = clampExtractionText(extracted.text);
+      const uploaded = await putExperienceFile(runId, part.filename, part.data, part.contentType);
 
       await saveExperienceUpload({
         runId,
@@ -180,8 +183,7 @@ export default async function handler(
         extracted: { chars: experienceText.length, method: extracted.method, warnings: extracted.warnings },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Upload failed";
-      return sendJson(res, 400, { ok: false, error: message });
+      return sendExtractionFailure(req, res, error, { route: "/api/runs/:runId/upload", format });
     }
   }
 
