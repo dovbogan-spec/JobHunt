@@ -3,7 +3,6 @@
   "installCommand": "npm ci",
   "functions": {
     "api/**/*.ts": {
-      "runtime": "nodejs24.x",
       "includeFiles": "node_modules/{@napi-rs/canvas,@napi-rs/canvas-linux-x64-gnu,pdf-parse,pdfjs-dist}/**/*"
     }
   }
