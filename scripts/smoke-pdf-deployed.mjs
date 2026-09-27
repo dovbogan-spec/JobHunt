@@ -1,4 +1,5 @@
 import { EXPECTED_PHRASE, createPdfBuffer } from "../test/helpers/fixtures.ts";
+import { createDeploymentRequestHeaders } from "./smoke-pdf-request.ts";
 
 const baseUrl = (process.env.BASE_URL || process.env.SMOKE_BASE_URL || "").replace(/\/$/, "");
 
@@ -15,6 +16,7 @@ form.append(
 
 const response = await fetch(`${baseUrl}/api/experience/parse`, {
   method: "POST",
+  headers: createDeploymentRequestHeaders(process.env.VERCEL_AUTOMATION_BYPASS_SECRET),
   body: form,
 });
 const responseBody = await response.text();
