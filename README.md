@@ -76,11 +76,10 @@ Smoke flow:
    - When deploying with OpenRouter: `LLM_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and optionally `OPENROUTER_MODEL`, `OPENROUTER_API_URL`, `OPENROUTER_HTTP_REFERER`, and `OPENROUTER_APP_NAME`
    - `DATABASE_URL`
    - Optional flags/tokens from `.env.example`
-5. The release workflow requires these GitHub Actions repository or environment secrets:
-   - `VERCEL_TOKEN`: a Vercel access token that has access to the configured organization and project.
-   - `VERCEL_ORG_ID`: the ID of the Vercel organization that owns the project.
-   - `VERCEL_PROJECT_ID`: the ID of the Vercel project to deploy.
-   Keep these values in GitHub Actions secrets and pass them only to server-side build/deploy steps.
+5. Configure the release workflow credentials as GitHub Actions secrets:
+   - `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, and `VERCEL_TOKEN` for preview deployment and production promotion.
+   - `VERCEL_AUTOMATION_BYPASS_SECRET` (optional) when Deployment Protection is enabled. The workflow exposes it only to the deployed PDF parser smoke-test step, which sends it in Vercel's automation bypass header.
+   Mirror any other required values as GitHub Actions secrets and pass them only to the steps that need them.
 6. Keep API routes/server modules (`api/*`, `server/*`) reading provider credentials from `process.env` only. Do not use browser `localStorage` or client-exposed `VITE_*` variables for raw provider keys.
 7. BYOK should use token exchange or encrypted server-side storage tied to authenticated users; do not store raw keys in browser storage.
    OpenRouter keys must be configured only as server-side Vercel environment variables; the browser sends only the provider and model selection. Apply variables to every Vercel environment (Production, Preview, or Development) that should use OpenRouter, then redeploy.
