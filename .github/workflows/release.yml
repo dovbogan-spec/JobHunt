@@ -68,6 +68,7 @@ jobs:
       - name: Exercise deployed PDF parser
         env:
           BASE_URL: ${{ steps.deploy.outputs.preview_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run smoke:pdf:deployed
       - name: Finish log capture
         if: always()
