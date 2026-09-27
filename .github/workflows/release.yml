@@ -42,27 +42,37 @@ jobs:
     outputs:
       preview_url: ${{ steps.deploy.outputs.preview_url }}
     steps:
+      - name: Validate Vercel deployment secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          missing=0
+          for secret_name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error title=Missing GitHub Actions secret::${secret_name} is not configured."
+              missing=1
+            fi
+          done
+          exit "$missing"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
       - name: Deploy preview
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          preview_url="$(vercel deploy --yes --token "$VERCEL_TOKEN")"
+          preview_url="$(npx --no-install vercel deploy --yes --token "$VERCEL_TOKEN")"
           echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
       - name: Start preview log capture
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
         run: |
-          vercel logs "$PREVIEW_URL" --json --token "$VERCEL_TOKEN" > pdf-request.log 2>&1 &
+          npx --no-install vercel logs "$PREVIEW_URL" --json --token "$VERCEL_TOKEN" > pdf-request.log 2>&1 &
           echo "pid=$!" >> "$GITHUB_OUTPUT"
         id: logs
       - name: Exercise deployed PDF parser
@@ -90,10 +100,14 @@ jobs:
     environment: production
     runs-on: ubuntu-latest
     steps:
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
       - name: Promote tested preview
         env:
           PREVIEW_URL: ${{ needs.preview-pdf-smoke.outputs.preview_url }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel promote "$PREVIEW_URL" --yes --token "$VERCEL_TOKEN"
+        run: npx --no-install vercel promote "$PREVIEW_URL" --yes --token "$VERCEL_TOKEN"
