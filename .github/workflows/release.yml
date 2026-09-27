@@ -33,6 +33,8 @@ jobs:
       - run: npm test
       - name: Type-check application
         run: npx tsc -b
+      - name: Type-check API and server
+        run: npx tsc -p tsconfig.vercel.json
 
   preview-pdf-smoke:
     needs: validate
