@@ -42,6 +42,18 @@ jobs:
     outputs:
       preview_url: ${{ steps.deploy.outputs.preview_url }}
     steps:
+      - name: Validate Vercel deployment secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          missing=0
+          for secret_name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error title=Missing GitHub Actions secret::${secret_name} is not configured."
+              missing=1
+            fi
+          done
+          exit "$missing"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
